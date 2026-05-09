@@ -10,7 +10,7 @@ class WorkSheetController extends Controller
 {
     public function index()
     {
-        $worksheets = WorkSheet::all();
+        $worksheets = WorkSheet::with('department')->get();
         return view('worksheets.index')->with('worksheets', $worksheets);
     }
 

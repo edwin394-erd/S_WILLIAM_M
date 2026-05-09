@@ -72,7 +72,7 @@
                     @if (auth()->user()->role == 'admin')
                          <a href="{{ route('admin.stats') }}" class="text-heading hover:underline">Estadisticas</a>
                     @elseif(auth()->user()->role == 'supervisor')
-                         <a href="{{ route('supervisor.stats') }}" class="text-heading hover:underline">Estadisticas Sup</a>
+                         <a href="{{ route('supervisor.stats') }}" class="text-heading hover:underline">Estadisticas</a>
                     @endif
                    
                 </li>

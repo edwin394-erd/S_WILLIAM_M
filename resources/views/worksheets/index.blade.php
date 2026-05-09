@@ -6,10 +6,11 @@
     <br>
   @php
     $columnas = [
-        'id'              => 'ID',
         'week_number'     => 'Semana',
+        'department.name'       => 'Departamento',
         'start_date'      => 'Fecha de Inicio',
         'end_date'        => 'Fecha de Fin', 
+
     ];
 @endphp
     

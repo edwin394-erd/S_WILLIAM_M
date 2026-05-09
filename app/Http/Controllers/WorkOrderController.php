@@ -42,6 +42,8 @@ class WorkOrderController extends Controller
 
    public function store(Request $request)
 {
+
+  
     $validated = $request->validate([
         'worksheet_id'     => 'required|exists:work_sheets,id',
         'installation_id'  => 'required|exists:installations,id',
@@ -117,7 +119,7 @@ class WorkOrderController extends Controller
         });
 
 
-        return redirect()->route('worksheets.show', $worksheet->id)
+        return redirect()->route('admin.worksheets.show', $worksheet->id)
             ->with('success', "Orden {$workOrder->odm_number} eliminada correctamente.");
     }
 
