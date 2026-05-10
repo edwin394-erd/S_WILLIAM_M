@@ -130,7 +130,7 @@
                     <div class="space-y-3">
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
                             <label class="block text-sm font-medium text-heading">Disciplinas</label>
-                            <button type="button" @click="addDiscipline()" class="inline-flex items-center text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition">
+                            <button type="button" @click="addDiscipline()" class="inline-flex items-center text-sm text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition">
                                 + Agregar
                             </button>
                         </div>

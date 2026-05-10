@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use App\Models\WorkSheet;
 use App\Models\Department;
 
@@ -18,13 +19,31 @@ class WorkSheetController extends Controller
     public function create()
     {
         $departments = Department::all();
-        return view('worksheets.create')->with('departments', $departments);
+        $numeroSemana = date('W');
+        $fechaInicio = date('Y-m-d', strtotime('thursday this week'));
+        $fechaFin = date('Y-m-d', strtotime('wednesday next week'));
+
+    
+        return view('worksheets.create')->with([
+            'departments' => $departments, 
+            'numeroSemana' => $numeroSemana, 
+            'fechaInicio' => $fechaInicio,
+            'fechaFin' => $fechaFin
+            ]);
     }
 
     public function store(Request $request)
     {
+        $departamento_semana_existe = WorkSheet::where('department_id', $request->department_id)
+            ->where('week_number', $request->week_number)
+            ->exists();
+        if ($departamento_semana_existe) {
+            return back()->withErrors(['department_id' => 'Ya existe una hoja de trabajo para este departamento en esta semana.'])->withInput();
+        }  
+
         $request->validate([
             'week_number' => 'required|integer',
+            
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'department_id' => 'required|exists:departments,id',
@@ -47,7 +66,9 @@ class WorkSheetController extends Controller
         'workOrders.equipment', 
         'workOrders.installation',
         'workOrders.tasks.discipline' // <-- Agregamos .discipline aquí
-    ])->findOrFail($id);
+        ])->with('department')->findOrFail($id);
+
+  
 
     return view('worksheets.show')->with('worksheet', $worksheet);
 }
@@ -64,6 +85,9 @@ class WorkSheetController extends Controller
 
     public function destroy($id)
     {
-        // Lógica para eliminar una hoja de trabajo
+        $worksheet = WorkSheet::findOrFail($id);
+        $worksheet->delete();
+
+        return redirect()->route('admin.worksheets.index')->with('success', 'Hoja de trabajo eliminada exitosamente.');
     }
 }

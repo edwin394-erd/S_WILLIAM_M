@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Middleware\CheckAdmin;
 use App\Http\Middleware\CheckSup;
 use App\Http\Middleware\CheckTecnico;
@@ -18,15 +19,13 @@ use App\Http\Controllers\InstallationController;
 
 
 Route::get('/', function () {
-    return redirect()->route('login');
+    return redirect()->route('admin.stats');
 });
 
-Route::get('/login', function () {
-     if(auth()->user()){
-        return back();
-    }
+Route::middleware(['guest'])->get('/login', function () {
     return view('login');
 })->name('login');
+
 
 Route::post('/login', [LoginController::class, 'store'])->name('login.submit');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');

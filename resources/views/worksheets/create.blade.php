@@ -14,6 +14,8 @@
                 title="Solo se permiten números"
                 :placeholder="'Numero de semana'" 
                 :required="true"
+                :readonly="true"
+                :value="$numeroSemana"
             />
             
             <div class="flex">
@@ -22,7 +24,9 @@
                         :name="'start_date'" 
                         :type="'date'" 
                         :placeholder="'Fecha de inicio'" 
-                        :required="true" />
+                        :required="true" 
+                        :readonly="true"
+                        :value="$fechaInicio"/>
                 </div>
                 <div class="w-1/2 ml-2">
                     <x-input :label="'Fecha de Fin'"
@@ -30,7 +34,8 @@
                         :type="'date'" 
                         :placeholder="'Fecha de fin'" 
                         :required="true" 
-                        />
+                        :value="$fechaFin"/>
+                        
                 </div>
             </div>
 
