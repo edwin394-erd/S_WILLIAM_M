@@ -6,16 +6,10 @@
         installations: {{ $installations->toJson() }},
         impactValue: 0,
         disciplines: @js($disciplines->pluck('name','id')),
-        selectedDisciplines: @js(old('discipline_id', [])),
+        selectedDiscipline: @js(old('discipline_id')),
         syncImpact(selectedId) {
             const inst = this.installations.find(i => i.id == selectedId);
             this.impactValue = inst ? inst.impact : 0;
-        },
-        addDiscipline() {
-            this.selectedDisciplines.push('');
-        },
-        removeDiscipline(index) {
-            this.selectedDisciplines.splice(index, 1);
         }
      }">
     
@@ -100,6 +94,8 @@
                                 name="date"
                                 label="Fecha"
                                 type="date"
+                                min="{{ $worksheet->start_date ?? '' }}"
+                                max="{{ $worksheet->end_date ?? '' }}"
                             />
                         </div>
 
@@ -127,37 +123,15 @@
 
                     </div>
                    
-                    <div class="space-y-3">
-                        <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
-                            <label class="block text-sm font-medium text-heading">Disciplinas</label>
-                            <button type="button" @click="addDiscipline()" class="inline-flex items-center text-sm text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition">
-                                + Agregar
-                            </button>
-                        </div>
-
-                        <div class="flex flex-wrap gap-3">
-                            <template x-for="(disc, index) in selectedDisciplines" :key="index">
-                                <div class="flex flex-col sm:flex-row items-end gap-2 w-full sm:w-[calc(50%-0.75rem)]">
-                                    <div class="flex-1">
-                                        <label class="sr-only">Disciplina</label>
-                                        <select name="discipline_id[]" x-model="selectedDisciplines[index]" class="bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base focus:ring-brand focus:border-brand block w-full px-3 py-2.5 shadow-xs">
-                                            <option value="">Seleccione una disciplina</option>
-                                            <template x-for="(label, value) in disciplines" :key="value">
-                                                <option :value="value" x-text="label"></option>
-                                            </template>
-                                        </select>
-                                    </div>
-                                    <button type="button" @click="removeDiscipline(index)" class="shrink-0 rounded-4xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 transition">
-                                        X
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
-
-                        <div x-show="selectedDisciplines.length === 0" class="text-sm text-gray-500">
-                            No hay disciplinas seleccionadas.
-                        </div>
-                    </div>
+                    <x-select 
+                        name="discipline_id"
+                        label="Disciplina"
+                        :options="$disciplines->pluck('name', 'id')"
+                        placeholder="Seleccione una disciplina"
+                        :buscable="true"
+                        x-model="selectedDiscipline"
+                        required
+                    />
                 </div>
 
             </div>      

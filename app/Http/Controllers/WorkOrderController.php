@@ -47,8 +47,7 @@ class WorkOrderController extends Controller
     $validated = $request->validate([
         'worksheet_id'     => 'required|exists:work_sheets,id',
         'installation_id'  => 'required|exists:installations,id',
-        'discipline_id'    => 'required|array|min:1',
-        'discipline_id.*'  => 'required|exists:disciplines,id',
+        'discipline_id'    => 'required|exists:disciplines,id',
         'equipment_id'     => 'required|exists:equipment,id',
         'type'             => 'required|in:CORRECTIVO,PREVENTIVO,PREDICTIVO,DETECTIVO',
         'impact'           => 'required|numeric',
@@ -59,18 +58,16 @@ class WorkOrderController extends Controller
         'high_risk'        => 'sometimes|boolean',
     ]);
 
-    $disciplineIds = $request->input('discipline_id', []);
+    $disciplineId = $request->discipline_id;
 
-    foreach ($disciplineIds as $disciplineId) {
-        $count = OrderTask::where('discipline_id', $disciplineId)
-            ->whereDate('date', $request->date)
-            ->count();
+    $count = OrderTask::where('discipline_id', $disciplineId)
+        ->whereDate('date', $request->date)
+        ->count();
 
-        if ($count >= 5) {
-            return back()
-                ->withInput()
-                ->with('error', "La disciplina seleccionada ya tiene 5 actividades programadas para esa fecha.");
-        }
+    if ($count >= 5) {
+        return back()
+            ->withInput()
+            ->with('error', "La disciplina seleccionada ya tiene 5 actividades programadas para esa fecha.");
     }
 
     $installation = Installation::findOrFail($request->installation_id);
@@ -78,7 +75,7 @@ class WorkOrderController extends Controller
     $dateTimeStart = Carbon::parse("{$request->date} {$request->time_start}");
     $dateTimeEnd = Carbon::parse("{$request->date} {$request->time_end}");
 
-    return DB::transaction(function () use ($request, $disciplineIds, $installation, $equipment, $dateTimeStart, $dateTimeEnd) {
+    return DB::transaction(function () use ($request, $disciplineId, $installation, $equipment, $dateTimeStart, $dateTimeEnd) {
         $odmNumber = WorkOrder::nextOdmNumber();
 
         $workOrder = WorkOrder::create([
@@ -92,16 +89,12 @@ class WorkOrderController extends Controller
             'is_high_risk'    => $request->boolean('high_risk'),
         ]);
 
-        foreach ($disciplineIds as $disciplineId) {
-            $discipline = Discipline::find($disciplineId);
-
-            $workOrder->tasks()->create([
-                'discipline_id' => $disciplineId,
-                'date'          => $request->date,
-                'time_start'    => $dateTimeStart,
-                'time_end'      => $dateTimeEnd,
-            ]);
-        }
+        $workOrder->tasks()->create([
+            'discipline_id' => $disciplineId,
+            'date'          => $request->date,
+            'time_start'    => $dateTimeStart,
+            'time_end'      => $dateTimeEnd,
+        ]);
 
         return redirect()->route('admin.worksheets.show', $request->worksheet_id)
             ->with('success', "Orden {$odmNumber} creada exitosamente.");
