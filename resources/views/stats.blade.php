@@ -1,5 +1,5 @@
 @extends('layouts.app')
-
+@section('title', 'estadisticas administrativas')
 @section('content')
 <div class="flex gap-6">
     <div>

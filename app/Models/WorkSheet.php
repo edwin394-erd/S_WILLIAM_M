@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkSheet extends Model
 {
-    protected $fillable = ['week_number', 'start_date', 'end_date', 'total_odm_scheduled', 'department_id', 'codigo'];
+    protected $fillable = ['week_number', 'start_date', 'end_date', 'total_odm_scheduled', 'department_id', 'codigo', 'enviado'];
 
     public function workOrders(): HasMany
     {

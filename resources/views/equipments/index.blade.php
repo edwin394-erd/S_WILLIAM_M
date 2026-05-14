@@ -1,9 +1,8 @@
 @extends('layouts.app')
-
+@section('title', 'Administrar Equipos')
 @section('content')
 <div>
-    <h1 class="text-xl font-bold text-gray-800">Equipos</h1>
-    <br>
+
     @php
         $columnas = [
             'id' => 'id',
@@ -17,7 +16,7 @@
         :columns="$columnas" 
         :eliminar="true" 
         :editar="true" 
-        :ver="true" 
+        {{-- :ver="true"  --}}
         :agregar="true"
         :routePrefix="'admin.equipment'"
     />

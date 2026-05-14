@@ -42,8 +42,6 @@ class WorkOrderController extends Controller
 
    public function store(Request $request)
 {
-
-  
     $validated = $request->validate([
         'worksheet_id'     => 'required|exists:work_sheets,id',
         'installation_id'  => 'required|exists:installations,id',
@@ -53,18 +51,15 @@ class WorkOrderController extends Controller
         'impact'           => 'required|numeric',
         'accion_requerida' => 'required|string',
         'date'             => 'required|date',
-        'time_start'       => 'required|date_format:H:i',
-        'time_end'         => 'required|date_format:H:i',
+        'time_start'       => 'nullable|date_format:H:i',
+        'time_end'         => 'nullable|date_format:H:i',
         'high_risk'        => 'sometimes|boolean',
     ]);
 
     $disciplineId = $request->discipline_id;
+    $schedule = $this->computeScheduleTimes($disciplineId, $request->date);
 
-    $count = OrderTask::where('discipline_id', $disciplineId)
-        ->whereDate('date', $request->date)
-        ->count();
-
-    if ($count >= 5) {
+    if ($schedule['count'] >= 5) {
         return back()
             ->withInput()
             ->with('error', "La disciplina seleccionada ya tiene 5 actividades programadas para esa fecha.");
@@ -72,8 +67,8 @@ class WorkOrderController extends Controller
 
     $installation = Installation::findOrFail($request->installation_id);
     $equipment = Equipment::findOrFail($request->equipment_id);
-    $dateTimeStart = Carbon::parse("{$request->date} {$request->time_start}");
-    $dateTimeEnd = Carbon::parse("{$request->date} {$request->time_end}");
+    $dateTimeStart = Carbon::parse("{$request->date} {$schedule['time_start']}");
+    $dateTimeEnd = Carbon::parse("{$request->date} {$schedule['time_end']}");
 
     return DB::transaction(function () use ($request, $disciplineId, $installation, $equipment, $dateTimeStart, $dateTimeEnd) {
         $odmNumber = WorkOrder::nextOdmNumber();
@@ -96,10 +91,50 @@ class WorkOrderController extends Controller
             'time_end'      => $dateTimeEnd,
         ]);
 
+        $worksheet = WorkSheet::find($request->worksheet_id);
+        WorkSheet::where('id', $worksheet->id)->update(['enviado' => 'POR ENVIAR']);
+
+
         return redirect()->route('admin.worksheets.show', $request->worksheet_id)
             ->with('success', "Orden {$odmNumber} creada exitosamente.");
     });
 }
+
+    public function scheduleInfo(Request $request)
+    {
+        $validated = $request->validate([
+            'discipline_id' => 'required|exists:disciplines,id',
+            'date'          => 'required|date',
+        ]);
+
+        $schedule = $this->computeScheduleTimes($validated['discipline_id'], $validated['date']);
+
+        return response()->json($schedule);
+    }
+
+    private function computeScheduleTimes(int $disciplineId, string $date): array
+    {
+        $count = OrderTask::where('discipline_id', $disciplineId)
+            ->whereDate('date', $date)
+            ->count();
+
+        if ($count >= 5) {
+            return [
+                'count'      => $count,
+                'time_start' => null,
+                'time_end'   => null,
+                'message'    => 'Máximo de 5 actividades alcanzado para esta disciplina en esta fecha.',
+            ];
+        }
+
+        $startHour = 7 + ($count * 2);
+
+        return [
+            'count'      => $count,
+            'time_start' => sprintf('%02d:00', $startHour),
+            'time_end'   => sprintf('%02d:00', $startHour + 2),
+        ];
+    }
 
     public function destroy($id)
     {
@@ -111,10 +146,46 @@ class WorkOrderController extends Controller
             $workOrder->delete();
         });
 
+        WorkSheet::where('id', $worksheet->id)->update('enviado', 'POR ENVIAR');
 
         return redirect()->route('admin.worksheets.show', $worksheet->id)
             ->with('success', "Orden {$workOrder->odm_number} eliminada correctamente.");
     }
+
+    public function actividades($id_discipline)
+    {
+        $today = Carbon::today('America/Caracas')->toDateString();
+
+        $workOrders = WorkOrder::whereHas('tasks', function ($query) use ($id_discipline, $today) {
+            $query->where('discipline_id', $id_discipline)
+                  ->whereDate('date', $today);
+        })->with(['tasks' => function ($query) use ($id_discipline, $today) {
+            $query->where('discipline_id', $id_discipline)->with('discipline');                  
+        }, 'installation', 'equipment'])->get();
+
+        // dd($workOrders);
+
+        if(auth()->user()->discipline_id !== (int)$id_discipline) {
+            abort(403, 'No tienes permiso para ver estas actividades.');
+        }
+
+        return view('actividades')->with('workOrders', $workOrders);
+    }
+
+    public function formulario($id_discipline, $work_order_id)
+    {
+        $workOrder = WorkOrder::with(['tasks' => function ($query) use ($id_discipline) {
+            $query->where('discipline_id', $id_discipline);
+        }, 'installation', 'equipment'])->findOrFail($work_order_id);
+
+        if(auth()->user()->discipline_id !== (int)$id_discipline) {
+            abort(403, 'No tienes permiso para ver este formulario.');
+        }
+
+        return view('workorders.reportar')->with('workOrder', $workOrder);
+    }
+ 
+
 
     public function show($id)
     {

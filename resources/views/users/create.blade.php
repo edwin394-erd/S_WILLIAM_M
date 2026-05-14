@@ -1,8 +1,9 @@
 @extends('layouts.app')
 
+@section('title', 'Crear Usuario')
 @section('content')
 <div class="bg-white p-6 rounded-lg w-full max-w-md border border-gray-300">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">Crear Usuario</h1>
+    {{-- <h1 class="text-2xl font-bold text-gray-800 mb-4">Crear Usuario</h1> --}}
     <form action="{{ route('admin.users.store') }}" method="POST">
         @csrf
         <div class="mb-4">
@@ -25,29 +26,42 @@
                 placeholder="Seleccione un rol"
                 required
             />
+            <br>
+            <div class="flex">
+                <div class="w-1/2 p-1">
+                    <x-select 
+                                name="department_id" 
+                                label="Departamento" 
+                                :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
+                                placeholder="Seleccione un departamento"
+                                required
+                            />
 
-            <x-select 
-                name="department_id" 
-                label="Departamento" 
-                :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
-                placeholder="Seleccione un departamento"
-                required
-            />
-
-            <x-select 
-                name="discipline_id" 
-                label="Disciplina" 
-                :options="[]" 
-                placeholder="Seleccione una disciplina"
-                required
-            />
+                </div>
+                 <div class="w-1/2 p-1">
+                 <x-select 
+                                name="discipline_id" 
+                                label="Disciplina" 
+                                :options="[]" 
+                                placeholder="Seleccione una disciplina"
+                                required
+                            />
+                 </div>
+                
+                
+                            
+                            
+                
+                           
+            </div>
+            <br>
 
             
 
             
         </div>
 
-        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Crear</button>
+        <button type="submit" class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded">Crear</button>
     </form>
 
     

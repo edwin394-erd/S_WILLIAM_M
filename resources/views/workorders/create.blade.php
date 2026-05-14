@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('title', 'Crear Asignación para Sabana - ' . ($worksheet->codigo ?? 'Semana ' . $worksheet->week_number))
 
 @section('content')
 <div class="bg-white p-6 rounded-lg w-full border border-gray-300"
@@ -7,15 +8,43 @@
         impactValue: 0,
         disciplines: @js($disciplines->pluck('name','id')),
         selectedDiscipline: @js(old('discipline_id')),
+        selectedDate: @js(old('date')),
+        timeStart: @js(old('time_start', '07:00')),
+        timeEnd: @js(old('time_end', '09:00')),
+        scheduleMessage: '',
         syncImpact(selectedId) {
             const inst = this.installations.find(i => i.id == selectedId);
             this.impactValue = inst ? inst.impact : 0;
+        },
+        async updateSchedule() {
+            if (!this.selectedDiscipline || !this.selectedDate) {
+                return;
+            }
+
+            try {
+                const url = '{{ route('admin.workorders.schedule-info') }}?discipline_id=' + encodeURIComponent(this.selectedDiscipline) + '&date=' + encodeURIComponent(this.selectedDate);
+                const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    this.scheduleMessage = error.message || 'No se pudo obtener el horario automático.';
+                    return;
+                }
+
+                const schedule = await response.json();
+                this.timeStart = schedule.time_start || this.timeStart;
+                this.timeEnd = schedule.time_end || this.timeEnd;
+                this.scheduleMessage = schedule.message || `Actividad ${schedule.count + 1} asignada: ${this.timeStart} - ${this.timeEnd}`;
+            } catch (error) {
+                this.scheduleMessage = 'Error obteniendo horario automático.';
+            }
         }
-     }">
+     }"
+     x-init="updateSchedule()">
     
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">
+    {{-- <h1 class="text-2xl font-bold text-gray-800 mb-4">
         Crear Asignación para Sabana - {{ 'Semana ' . $worksheet->week_number  }}
-    </h1>
+    </h1> --}}
     <form action="{{ route('admin.workorders.store') }}" method="POST">
         @csrf
         @if(isset($worksheet))
@@ -42,6 +71,7 @@
                         required
                         
                     />
+                    <br>
 
                     <x-input :label="'Accion requerida'" 
                             :name="'accion_requerida'" 
@@ -87,6 +117,18 @@
                         placeholder="Seleccione un equipo"
                         :buscable="true"
                     /> 
+                    <br>
+                      <x-select 
+                        name="discipline_id"
+                        label="Disciplina"
+                        :options="$disciplines->pluck('name', 'id')"
+                        selected="{{ old('discipline_id') }}"
+                        placeholder="Seleccione una disciplina"
+                        :buscable="true"
+                        @change="selectedDiscipline = $event.detail; updateSchedule()"
+                        required
+                    />
+                    <br>
 
                     <div class="flex">
                         <div class="w-1/2 mr-2">
@@ -96,10 +138,10 @@
                                 type="date"
                                 min="{{ $worksheet->start_date ?? '' }}"
                                 max="{{ $worksheet->end_date ?? '' }}"
+                                x-model="selectedDate"
+                                @change="updateSchedule()"
                             />
                         </div>
-
-                            
 
                         <div class="w-1/2 mr-2 ">
                             <div class="flex">
@@ -108,6 +150,8 @@
                                         name="time_start"
                                         label="Hora Inicio"
                                         type="time"
+                                        x-model="timeStart"
+                                        readonly
                                     /> 
                                 </div>
                                 <div class="w-1/2">
@@ -115,33 +159,20 @@
                                         name="time_end"
                                         label="Hora Fin"
                                         type="time"
+                                        x-model="timeEnd"
+                                        readonly
                                     /> 
                                 </div>
                             </div>
-                           
+                            <p class="text-sm text-gray-500 mt-1" x-text="scheduleMessage"></p>
                         </div>
-
                     </div>
-                   
-                    <x-select 
-                        name="discipline_id"
-                        label="Disciplina"
-                        :options="$disciplines->pluck('name', 'id')"
-                        placeholder="Seleccione una disciplina"
-                        :buscable="true"
-                        x-model="selectedDiscipline"
-                        required
-                    />
                 </div>
-
-            </div>      
-            
-
-            
+            </div>
         </div>
 
         <div class="flex justify-end">
-            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Crear</button>
+            <button type="submit" class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded">Crear</button>
         </div>
     </form>
 

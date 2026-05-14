@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
+@section('title', 'Departamentos>>' . ($department->name ?? 'Sin nombre') . '>>Disciplinas')
+
 @section('content')
 <div>
-    <h1 class="text-xl font-bold text-gray-800">Departamentos {{ $department->name }}>>Disciplinas</h1>
-    <br>
-    @php
+       @php
         $columnas = [
             'id' => 'id',
             'name'  => 'Nombre',

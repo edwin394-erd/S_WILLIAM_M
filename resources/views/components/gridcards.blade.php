@@ -1,0 +1,223 @@
+@props([
+    'records', 
+    'columns', 
+    'eliminar' => false, 
+    'editar' => false, 
+    'ver' => false,
+    'compartir_telegram' => false,
+    'descargar_pdf' => false,
+    'enviar_telegram' => false,
+    'buscable' => true, 
+    'agregar' => false,
+    'routePrefix' => null, 
+    'createParams' => [],
+    'departmentOptions' => [],
+])
+
+@php
+    $dummyId = 'DUMMY_ID';
+    $showUrl = ($ver && $routePrefix) ? route($routePrefix . '.show', $dummyId) : '';
+    $editUrl = ($editar && $routePrefix) ? route($routePrefix . '.edit', $dummyId) : '';
+    $deleteUrl = ($eliminar && $routePrefix) ? route($routePrefix . '.destroy', $dummyId) : '';
+    $pdfUrl = ($descargar_pdf && $routePrefix) ? route($routePrefix . '.pdf', $dummyId) : '';
+    $telegramUrl = ($enviar_telegram && $routePrefix) ? route($routePrefix . '.send-telegram', $dummyId) : '';
+
+    $departmentOptions = (array) $departmentOptions;
+    if (empty($departmentOptions)) {
+        $departmentOptions = collect($records)->pluck('department.name')->filter()->unique()->values()->all();
+        $departmentOptions = $departmentOptions ? array_combine($departmentOptions, $departmentOptions) : [];
+    }
+    if (!array_key_exists('', $departmentOptions)) {
+        $departmentOptions = ['' => 'Todos los departamentos'] + $departmentOptions;
+    }
+@endphp
+
+<div class="space-y-6" 
+     x-cloak
+     x-data="{ 
+        search: '', 
+        departmentFilter: '',
+        page: 1, 
+        perPage: 9,
+        records: {{ json_encode($records) }},
+        departments: {{ json_encode($departmentOptions) }},
+        showUrlTemplate: '{{ $showUrl }}',
+        editUrlTemplate: '{{ $editUrl }}',
+        pdfUrlTemplate: '{{ $pdfUrl }}',
+        deleteUrlTemplate: '{{ $deleteUrl }}',
+        telegramUrlTemplate: '{{ $telegramUrl }}',
+        
+        get filteredRecords() {
+            return this.records.filter(r => {
+                const matchesDepartment = this.departmentFilter === '' || String(r.department?.name || '').toLowerCase() === this.departmentFilter.toLowerCase();
+                if (!matchesDepartment) return false;
+
+                if (this.search === '') return true;
+                const searchTerm = this.search.toLowerCase();
+
+                return Object.values(r).some(v => {
+                    if (v === null || v === undefined) return false;
+                    if (typeof v === 'object') return JSON.stringify(v).toLowerCase().includes(searchTerm);
+                    return String(v).toLowerCase().includes(searchTerm);
+                });
+            });
+        },
+        get pagedRecords() {
+            let start = (this.page - 1) * this.perPage;
+            let end = start + parseInt(this.perPage);
+            return this.filteredRecords.slice(start, end);
+        },
+        get totalPages() {
+            return Math.ceil(this.filteredRecords.length / this.perPage) || 1;
+        },
+        getShowUrl(id) { return this.showUrlTemplate.replace('{{ $dummyId }}', id); },
+        getEditUrl(id) { return this.editUrlTemplate.replace('{{ $dummyId }}', id); },
+        getPdfUrl(id) { return this.pdfUrlTemplate.replace('{{ $dummyId }}', id); },
+        getTelegramUrl(id) { return this.telegramUrlTemplate.replace('{{ $dummyId }}', id); },
+        getDeleteUrl(id) { return this.deleteUrlTemplate.replace('{{ $dummyId }}', id); },
+        
+        formatValue(value) {
+            if (typeof value !== 'string') return value;
+            const isoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+            if (isoDateTime.test(value)) {
+                const [date, time] = value.split('T');
+                return `${date.split('-').reverse().join('/')} ${time.slice(0, 5)}`;
+            }
+            const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+            if (isoDate.test(value)) {
+                return value.split('-').reverse().join('/');
+            }
+            return value;
+        }
+     }">
+
+    {{-- Controles Superiores --}}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:gap-4 w-full">
+            @if($buscable)
+                <div class="relative w-full sm:w-80">
+                    <input 
+                        type="text" 
+                        x-model="search"
+                        @input="page = 1"
+                        placeholder="Buscar registros..." 
+                        class="block w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
+                    >
+                </div>
+            @endif
+
+            <div class="relative w-full sm:w-72">
+                <x-select 
+                    class="mb-0 w-full"
+                    name="departmentFilter"
+                    :options="$departmentOptions" 
+                    selected="" 
+                    @change="departmentFilter = $event.detail; page = 1" 
+                    buscable="true" 
+                    placeholder="Seleccione departamento..." 
+                />
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2" x-show="records.length > 0">
+                <label class="text-sm text-gray-600">Ver:</label>
+                <select x-model="perPage" @change="page = 1" class="text-sm border-gray-300 rounded-lg py-1.5">
+                    <option value="6">6</option>
+                    <option value="9">9</option>
+                    <option value="18">18</option>
+                </select>
+            </div>
+            
+            @if($agregar && $routePrefix)
+                <a href="{{ route($routePrefix . '.create', $createParams) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">
+                    <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Nuevo
+                </a>
+            @endif
+        </div>
+    </div>
+
+    {{-- Grid de Cards --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-for="record in pagedRecords" :key="record.id">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                <div class="p-5 flex-grow space-y-3">
+                    @foreach($columns as $field => $label)
+                        <div class="flex flex-col">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ $label }}</span>
+                            <span
+                                class="text-sm font-medium text-gray-800"
+                                x-bind:class="{
+                                    'bg-green-50 text-green-700 px-2 py-1 rounded-full text-center': '{{ $field }}' === 'enviado' && record.{{ $field }} === 'ENVIADO',
+                                    'bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full texte-center': '{{ $field }}' === 'enviado' && record.{{ $field }} !== 'ENVIADO'
+                                }"
+                                x-text="formatValue(record.{{ $field }}) ?? 'N/A'"
+                            ></span>
+                        </div>
+                    @endforeach
+                </div>
+
+                @if($eliminar || $editar || $ver || $compartir_telegram || $descargar_pdf || $enviar_telegram)
+                    <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-end gap-4 text-sm">
+                        @if($ver && $routePrefix)
+                            <a :href="getShowUrl(record.id)" class="text-green-600 hover:text-green-800 font-semibold transition-colors">Asignaciones</a>
+                        @endif
+
+                        @if($editar && $routePrefix)
+                            <a :href="getEditUrl(record.id)" class="text-slate-600 hover:text-slate-800 font-semibold transition-colors">Editar</a>
+                        @endif
+
+                        @if($eliminar && $routePrefix)
+                            <form :action="getDeleteUrl(record.id)" method="POST" @submit="if(!confirm('¿Eliminar este registro?')) $event.preventDefault()">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-red-600 hover:text-red-800 font-semibold transition-colors cursor-pointer">
+                                    Eliminar
+                                </button>
+                            </form>
+                        @endif
+
+                     
+
+                        @if($descargar_pdf && $routePrefix)
+                            <a :href="getPdfUrl(record.id)" target="_blank" class="text-purple-600 hover:text-purple-800 font-semibold transition-colors">PDF</a>
+                        @endif
+
+                        @if($enviar_telegram && $routePrefix)
+                            <form :action="getTelegramUrl(record.id)" method="POST" class="inline">
+                                @csrf
+                                <input type="hidden" name="chat_id" :value="record.department?.grupo_telegram_id || ''">
+                                <button type="submit" class="text-cyan-600 hover:text-cyan-800 font-semibold transition-colors cursor-pointer">
+                                    Enviar Telegram
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        </template>
+    </div>
+
+    {{-- Estado Vacío --}}
+    <div x-show="filteredRecords.length === 0" class="py-20 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+        <p class="text-gray-500">No se encontraron resultados para tu búsqueda.</p>
+    </div>
+
+    {{-- Paginación --}}
+    <div class="flex items-center justify-between" x-show="totalPages > 1">
+        <p class="text-sm text-gray-600">
+            Página <span class="font-bold text-gray-900" x-text="page"></span> de <span class="font-bold text-gray-900" x-text="totalPages"></span>
+        </p>
+        <div class="inline-flex shadow-sm rounded-md">
+            <button @click="page--" :disabled="page === 1" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 disabled:opacity-50">
+                Anterior
+            </button>
+            <button @click="page++" :disabled="page === totalPages" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 disabled:opacity-50">
+                Siguiente
+            </button>
+        </div>
+    </div>
+</div>

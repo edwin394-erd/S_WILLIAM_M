@@ -23,7 +23,7 @@ x-cloak
      x-data="{ 
         search: '', 
         page: 1, 
-        perPage: 10,
+        perPage: 8,
         records: {{ json_encode($records) }},
         showUrlTemplate: '{{ $showUrl }}',
         editUrlTemplate: '{{ $editUrl }}',
@@ -70,7 +70,7 @@ x-cloak
                     x-model="search"
                     @input="page = 1"
                     placeholder="Buscar en la tabla..." 
-                    class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
                 >
             </div>
         @endif
@@ -79,7 +79,7 @@ x-cloak
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2" x-show="records.length > 0" style="display: none;">
                 <label for="perPage" class="text-sm text-gray-600">Mostrar:</label>
-                <select id="perPage" x-model="perPage" @change="page = 1" class="text-sm border-gray-300 rounded-lg py-1.5 focus:ring-blue-500 focus:border-blue-500">
+                <select id="perPage" x-model="perPage" @change="page = 1" class="text-sm border-gray-300 rounded-lg py-1.5 focus:ring-slate-500 focus:border-slate-500">
                     <option value="5">5</option>
                     <option value="10">10</option>
                     <option value="25">25</option>
@@ -88,7 +88,7 @@ x-cloak
             </div>
             
             @if($agregar && $routePrefix)
-                <a href="{{ route($routePrefix . '.create', $createParams) }}" class="inline-flex items-center text-blue-600 bg-blue-100 hover:bg-blue-200 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-4 py-2">
+                <a href="{{ route($routePrefix . '.create', $createParams) }}" class="inline-flex items-center text-slate-600 bg-slate-100 hover:bg-slate-200 focus:ring-4 focus:outline-none focus:ring-slate-300 font-medium rounded-lg text-sm px-4 py-2">
                     <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Agregar Nuevo 
                 </a>
@@ -113,28 +113,31 @@ x-cloak
                 <template x-for="record in pagedRecords" :key="record.id">
                     <tr class="bg-neutral-primary border-b border-default hover:bg-gray-50 transition-colors">
                         @foreach($columns as $field => $label)
-                            <td class="px-6 py-4" x-text="formatValue(record.{{ $field }}) ?? 'N/A'"></td>
+                            <td class="px-6 py-2" x-text="formatValue(record.{{ $field }}) ?? 'N/A'"></td>
                         @endforeach
                         
                         @if($eliminar || $editar || $ver)
-                            <td class="px-6 py-4 text-center space-x-2 whitespace-nowrap">
-                                @if($ver && $routePrefix)
-                                    <a :href="getShowUrl(record.id)" class="text-green-600 hover:underline">Ver</a>
-                                @endif
+                            <td class="px-6 py-2 whitespace-nowrap text-center">
+                                <div class="inline-flex items-center justify-center gap-2">
+                                    @if($ver && $routePrefix)
+                                        <a :href="getShowUrl(record.id)" class="text-green-600 hover:underline">                                                <x-svg-show/>
+</a>
+                                    @endif
 
-                                @if($editar && $routePrefix)
-                                    <a :href="getEditUrl(record.id)" class="text-blue-600 hover:underline">Editar</a>
-                                @endif
+                                    @if($editar && $routePrefix)
+                                        <a :href="getEditUrl(record.id)" class="text-slate-600 hover:underline"><x-svg-edit/></a>
+                                    @endif
 
-                                @if($eliminar && $routePrefix)
-                                    <form :action="getDeleteUrl(record.id)" method="POST" class="inline-block" @submit="if(!confirm('¿Estás seguro de eliminar este registro?')) $event.preventDefault()">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:underline">
-                                            Eliminar
-                                        </button>
-                                    </form>
-                                @endif
+                                    @if($eliminar && $routePrefix)
+                                        <form :action="getDeleteUrl(record.id)" method="POST" class="inline-flex items-center" @submit="if(!confirm('¿Estás seguro de eliminar este registro?')) $event.preventDefault()">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline cursor-pointer">
+                                                <x-svg-delete/>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </td>
                         @endif
                     </tr>
@@ -151,7 +154,7 @@ x-cloak
     </div>
 
     {{-- Controles de Paginación --}}
-   <div class="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-b-lg" x-show="totalPages > 1" style="display: none;">
+   <div class="flex items-center justify-between px-4 py-1 bg-white border border-gray-200 rounded-b-lg" x-show="totalPages > 1" style="display: none;">
     <!-- Vista Móvil (Botones grandes) -->
     <div class="flex flex-1 justify-between sm:hidden">
         <button @click="page--" :disabled="page === 1" 
@@ -175,7 +178,7 @@ x-cloak
             <nav class="relative z-0 inline-flex -space-x-px rounded-md shadow-xs" aria-label="Pagination">
                 <!-- Botón Anterior -->
                 <button @click="page--" :disabled="page === 1" 
-                    class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                     <span class="sr-only">Anterior</span>
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
@@ -189,7 +192,7 @@ x-cloak
 
                 <!-- Botón Siguiente -->
                 <button @click="page++" :disabled="page === totalPages" 
-                    class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                     <span class="sr-only">Siguiente</span>
                     <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />

@@ -5,13 +5,18 @@
     'eliminar' => false, 
     'editar' => false, 
     'ver' => false,
+    'crear' => true,
+    'reportar' => false
 ])
 
 @php
     $dummyId = 'DUMMY_ID';
+    $dummyWorkOrderId = 'DUMMY_W';
+    $dummyDisciplineId = 'DUMMY_D';
     $showUrl = ($ver) ? route($routePrefix . '.show', $dummyId) : '';
     $editUrl = ($editar) ? route($routePrefix . '.edit', $dummyId) : '';
     $deleteUrl = ($eliminar) ? route($routePrefix . '.destroy', $dummyId) : '';
+    $reportUrl =  ($reportar) ? route('tecnico.reportar.formulario', ['id_disciplina' => $dummyDisciplineId, 'work_order' => $dummyWorkOrderId]) : '';
 @endphp
 
 <div class="space-y-4" x-cloak
@@ -23,6 +28,7 @@
         showUrlTemplate: '{{ $showUrl }}',
         editUrlTemplate: '{{ $editUrl }}',
         deleteUrlTemplate: '{{ $deleteUrl }}',
+        reportUrlTemplate: '{{ $reportUrl }}',
         
         get filteredRecords() {
             if (this.search === '') return this.records;
@@ -42,7 +48,12 @@
         },
         getShowUrl(id) { return this.showUrlTemplate.replace('{{ $dummyId }}', id); },
         getEditUrl(id) { return this.editUrlTemplate.replace('{{ $dummyId }}', id); },
-        getDeleteUrl(id) { return this.deleteUrlTemplate.replace('{{ $dummyId }}', id); }
+        getDeleteUrl(id) { return this.deleteUrlTemplate.replace('{{ $dummyId }}', id); },
+        getReportUrl(workOrderId, disciplineId) {
+            return this.reportUrlTemplate
+                .replace('{{ $dummyDisciplineId }}', disciplineId)
+                .replace('{{ $dummyWorkOrderId }}', workOrderId);
+        }
      }">
 
     {{-- Buscador y Cabecera --}}
@@ -50,16 +61,18 @@
         <div class="relative">
             <input type="text" x-model="search" @input="page = 1"
                 placeholder="Buscar por ODM, Acción o Instalación..." 
-                class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
         </div>
-
+        @if ($crear)
+            
         <div class="flex items-center gap-3">
             <a href="{{ route($routePrefix . '.create', ['worksheet_id' => $worksheetId]) }}" 
-               class="inline-flex items-center text-blue-600 bg-blue-100 hover:bg-blue-200 font-medium rounded-lg text-sm px-4 py-2 transition-colors shadow-sm">
+               class="inline-flex items-center text-slate-600 bg-slate-100 hover:bg-slate-200 font-medium rounded-lg text-sm px-4 py-2 transition-colors shadow-sm">
                 <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 Nueva Asignación
             </a>
         </div>
+        @endif
     </div>
 
     {{-- Tabla Estilo Petro Boscán con Acciones --}}
@@ -70,7 +83,7 @@
             
             <div class="bg-white shadow-md rounded-lg overflow-hidden border border-gray-300 text-xs transition hover:-translate-y-0.5">
                  {{-- Encabezado --}}
-        <div class="flex bg-gray-800 text-white font-bold uppercase p-2 items-center">
+        <div class="flex bg-slate-600 text-white font-bold uppercase p-2 items-center">
             <div class="w-10 text-center">AR</div>
             <div class="w-32 px-2 border-l border-gray-600 text-center">ODM / COD</div>
             <div class="w-24 px-2 border-l border-gray-600">Tipo</div>
@@ -85,7 +98,7 @@
                 {{-- Fila Principal (ODM) --}}
                 <div class="flex items-center font-bold bg-white p-2">
                     <div class="w-10 text-center text-red-600" x-text="order.is_high_risk ? 'ALTO' : ''"></div>
-                    <div class="w-32 px-2 border-l border-gray-200 text-center text-blue-700" x-text="order.odm_number"></div>
+                    <div class="w-32 px-2 border-l border-gray-200 text-center text-slate-700" x-text="order.odm_number"></div>
                     <div class="w-24 px-2 border-l border-gray-200 text-[10px]" x-text="order.type"></div>
                     <div class="flex-1 px-2 border-l border-gray-200 uppercase truncate" x-text="order.accion_requerida"></div>
                     <div class="w-32 px-2 border-l border-gray-200 truncate" x-text="order.installation?.name ?? 'N/A'"></div>
@@ -93,7 +106,7 @@
                     <div class="w-24 text-right px-2 border-l border-gray-200 truncate" x-text="order.equipment?.name ?? 'N/A'"></div>
                     
                     {{-- Acciones dinámicas --}}
-                    @if($editar || $eliminar || $ver)
+                    @if($editar || $eliminar || $ver || $reportar)
                     <div class="w-32 px-2 border-l border-gray-200 flex justify-center gap-3">
                         @if($ver)
                             <a :href="getShowUrl(order.id)" class="text-green-600 hover:text-green-800" title="Ver Detalles">
@@ -101,7 +114,7 @@
                             </a>
                         @endif
                         @if($editar)
-                            <a :href="getEditUrl(order.id)" class="text-blue-600 hover:text-blue-800" title="Editar">
+                            <a :href="getEditUrl(order.id)" class="text-slate-600 hover:text-slate-800" title="Editar">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </a>
                         @endif
@@ -113,6 +126,11 @@
                                 </button>
                             </form>
                         @endif
+                        @if($reportar)
+                            <a :href="getReportUrl(order.id, order.tasks[0]?.discipline_id ?? 'N/A')" class="text-yellow-600 hover:text-yellow-800" title="Reportar Incidencia">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            </a>
+                        @endif
                     </div>
                     @endif
                 </div>
@@ -123,13 +141,13 @@
                     <div class="flex items-center text-[10px] text-gray-500 bg-slate-50 p-1.5 border-t border-gray-100 italic">
                         <div class="w-10"></div>
                         <div class="w-32 px-2 font-bold text-gray-700" x-text="'A-' + order.odm_number.toString().slice(-6)"></div>
-                        <div class="w-24 px-2 font-semibold text-blue-900" x-text="task.discipline?.name ?? 'S/D'"></div>
+                        <div class="w-24 px-2 font-semibold text-slate-900" x-text="task.discipline?.name ?? 'S/D'"></div>
                         <div class="flex-1 px-2 border-l border-gray-200" x-text="order.accion_requerida"></div>
                         <div class="w-auto px-2 text-right font-mono font-medium">
                             <span class="text-gray-900" x-text="task.date.includes('T') ? task.date.split('T')[0].split('-').reverse().join('/') : task.date"></span> | 
-                            <span class="text-blue-800" x-text="(task.time_start.includes('T') ? task.time_start.split('T')[1].slice(0,5) : task.time_start.slice(0,5)) + ' - ' + (task.time_end.includes('T') ? task.time_end.split('T')[1].slice(0,5) : task.time_end.slice(0,5))"></span>
+                            <span class="text-slate-800" x-text="(task.time_start.includes('T') ? task.time_start.split('T')[1].slice(0,5) : task.time_start.slice(0,5)) + ' - ' + (task.time_end.includes('T') ? task.time_end.split('T')[1].slice(0,5) : task.time_end.slice(0,5))"></span>
                         </div>
-                        @if($editar || $eliminar || $ver)
+                        @if($editar || $eliminar || $ver || $reportar)
                             <div class="w-32 px-2 border-l border-gray-200"></div> {{-- Espacio para alinear con acciones de arriba --}}
                         @endif
                     </div>
@@ -152,7 +170,7 @@
         </span>
         <div class="inline-flex shadow-sm rounded-md">
             <button @click="page--" :disabled="page === 1" class="px-4 py-2 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-40 transition">ANTERIOR</button>
-            <div class="px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50 border-t border-b border-gray-300" x-text="page + ' / ' + totalPages"></div>
+            <div class="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-50 border-t border-b border-gray-300" x-text="page + ' / ' + totalPages"></div>
             <button @click="page++" :disabled="page === totalPages" class="px-4 py-2 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-40 transition">SIGUIENTE</button>
         </div>
     </div>

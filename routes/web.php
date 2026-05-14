@@ -6,6 +6,8 @@ use App\Http\Middleware\CheckAdmin;
 use App\Http\Middleware\CheckSup;
 use App\Http\Middleware\CheckTecnico;
 use App\Http\Middleware\CheckPlan;
+use App\Http\Middleware\CheckPlanAdmin;
+
 
 use App\Http\Controllers\WorkSheetController;
 use App\Http\Controllers\OrderTaskController;
@@ -19,8 +21,21 @@ use App\Http\Controllers\InstallationController;
 
 
 Route::get('/', function () {
-    return redirect()->route('admin.stats');
-});
+    if (Auth::check()) {
+        $role = Auth::user()->role;
+
+        if ($role === 'admin' || $role === 'planificador') {
+            return redirect()->route('admin.stats');
+        } elseif ($role === 'supervisor') {
+            return redirect()->route('supervisor.stats');
+        } elseif ($role === 'tecnico') {
+            $disciplineId = Auth::user()->discipline_id; // Asumiendo que el usuario tiene este campo
+            return redirect()->route('tecnico.actividades', ['id_disciplina' => $disciplineId]);
+        }
+    }   else {
+        return redirect()->route('login');
+    }
+})->name('home');
 
 Route::middleware(['guest'])->get('/login', function () {
     return view('login');
@@ -30,12 +45,23 @@ Route::middleware(['guest'])->get('/login', function () {
 Route::post('/login', [LoginController::class, 'store'])->name('login.submit');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+Route::middleware(['auth', CheckTecnico::class])->group(function () {
+    Route::get('/disciplina/{id_disciplina}/actividades',[ WorkOrderController::class, 'actividades'])->name('tecnico.actividades');
+    Route::get('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'formulario'])->name('tecnico.reportar.formulario');
+    Route::post('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'reportar'])->name('tecnico.reportar');
+    
+});
 
 
 
-
-Route::resource('worksheets', WorkSheetController::class)->names('admin.worksheets');
-Route::resource('workorders', WorkOrderController::class)->names('admin.workorders');
+Route::middleware(['auth', CheckPlanAdmin::class])->group(function () {
+    Route::resource('worksheets', WorkSheetController::class)->names('admin.worksheets');
+    Route::get('worksheets/{worksheet}/pdf', [WorkSheetController::class, 'generatePdf'])->name('admin.worksheets.pdf');
+    Route::post('worksheets/{worksheet}/send-telegram', [WorkSheetController::class, 'sendToTelegram'])->name('admin.worksheets.send-telegram');
+    Route::get('workorders/schedule-info', [WorkOrderController::class, 'scheduleInfo'])->name('admin.workorders.schedule-info');
+    Route::resource('workorders', WorkOrderController::class)->names('admin.workorders');
+    
+});
 
 Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(function () {
     Route::get('/stats', function () {
@@ -45,7 +71,7 @@ Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(functi
 
 });
 
-Route::middleware(['auth', CheckAdmin::class])->prefix('admin')->group(function () {
+Route::middleware(['auth', CheckPlanAdmin::class])->prefix('admin')->group(function () {
     Route::get('/stats', function () {
          $saludo = "HOLA ADMIN";
         return view('stats')->with('saludo', $saludo);

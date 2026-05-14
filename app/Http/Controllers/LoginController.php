@@ -21,18 +21,23 @@ class LoginController extends Controller
         $request->session()->regenerate();
 
         // Lógica de redirección basada en el ROL definido en nuestra migración
-        if (Auth::user()->role === 'admin') {
+        if (Auth::user()->role === 'admin' || Auth::user()->role === 'planificador') {
             return redirect()->route('admin.stats');// Verá estadísticas y creará la sábana
         }
 
-        // dd(auth()->user()->role);
-        return redirect()->route('supervisor.stats');
+        if (Auth::user()->role === 'supervisor') {
+            dd('supervisor');
+            return redirect()->route('supervisor.stats'); // Verá estadísticas y creará la sábana
+        }
 
-    }
+            if (Auth::user()->role === 'tecnico') {
+            $disciplineId = Auth::user()->discipline_id; // Asumiendo que el usuario tiene este campo
+            return redirect()->route('tecnico.actividades', ['id_disciplina' => $disciplineId]);
+        }
+            }
 
-    return back()->withErrors([
-        'email' => 'Las credenciales no coinciden con nuestros registros.',
-    ]);
+   $request->session()->flash('error', 'Las credenciales proporcionadas no son correctas.');
+    return back();
 }
 
     public function logout(Request $request)

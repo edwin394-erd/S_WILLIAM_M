@@ -1,9 +1,8 @@
 @extends('layouts.app')
-
+@section('title', 'Administrar Usuarios')
 @section('content')
 <div>
-    <h1 class="text-xl font-bold text-gray-800">Usuarios</h1>
-    <br>
+  
   @php
     $columnas = [
         'id'              => 'ID',

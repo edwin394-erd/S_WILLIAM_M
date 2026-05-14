@@ -14,7 +14,7 @@ class WorkOrder extends Model
         'work_sheet_id', 'odm_number', 'type', 
         'impacto', 'accion_requerida', 
         'installation_id','equipment_id',
-        'is_high_risk', 'is_extraplan'
+        'is_high_risk', 'is_extraplan','comentario'
     ];
 
     public static function nextOdmNumber(): string

@@ -19,6 +19,7 @@ return new class extends Migration
             $table->date('end_date');   // miércoles, 29 abril[cite: 1]
             $table->foreignId('department_id')->constrained();
             $table->integer('total_odm_scheduled')->default(0);
+            $table->string('enviado')->default("POR ENVIAR"); // Indica si la hoja de trabajo ha sido enviada a SAP
             $table->timestamps();
         });
     }

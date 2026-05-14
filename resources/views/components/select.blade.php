@@ -6,7 +6,7 @@
     'buscable' => false,
 ])
 
-<div {{ $attributes->merge(['class' => 'mb-5 relative']) }} {{-- 'relative' aquí es vital --}}
+<div {{ $attributes->merge(['class' => 'relative']) }} {{-- 'relative' aquí es vital --}}
      x-data="{ 
         open: false,
         search: '',

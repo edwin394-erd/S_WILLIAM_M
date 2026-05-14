@@ -22,6 +22,7 @@ return new class extends Migration
             $table->text('accion_requerida');
             $table->boolean('is_high_risk')->default(false); 
             $table->boolean('is_extraplan')->default(false); 
+            $table->text('comentario')->nullable();
             $table->timestamps();
         });
     }
