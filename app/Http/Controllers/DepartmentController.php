@@ -24,10 +24,12 @@ class DepartmentController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'grupo_telegram_id' => 'nullable|string|max:255',
         ]);
 
         Department::create([
             'name' => $request->name,
+            'grupo_telegram_id' => $request->grupo_telegram_id,
         ]);
 
         return redirect()->route('admin.departments.index')->with('success', 'Departamento creado exitosamente.');

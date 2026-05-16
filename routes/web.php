@@ -48,7 +48,7 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::middleware(['auth', CheckTecnico::class])->group(function () {
     Route::get('/disciplina/{id_disciplina}/actividades',[ WorkOrderController::class, 'actividades'])->name('tecnico.actividades');
     Route::get('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'formulario'])->name('tecnico.reportar.formulario');
-    Route::post('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'reportar'])->name('tecnico.reportar');
+    Route::post('/disciplina/actividades/{work_order}/reportar', [WorkOrderController::class, 'reportar'])->name('tecnico.reportar');
     
 });
 

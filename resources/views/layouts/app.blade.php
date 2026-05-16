@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sistema de Gestión de Órdenes - PDVSA</title>
+    <link rel="icon" type="image/png" href="{{ asset('imgs/pdvsaicon.png') }}" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         [x-cloak] { display: none !important; }
@@ -31,7 +32,7 @@
                 <button @click="sidebarOpen = !sidebarOpen" class="md:hidden p-2 text-gray-600 hover:text-pdvsa-red transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
-                <x-pdvs-logo class="h-8 md:h-10"/>
+                <x-pdvs-logo class="h-8 md:h-9"/>
             </div>
             <div class="hidden sm:block text-right">
                 <p class="text-[10px] md:text-xs text-gray-600 font-bold uppercase">ROL: {{ auth()->user()->role }}</p>
@@ -54,7 +55,10 @@
             class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-50 border-r border-gray-300 transition-transform duration-300 transform md:relative md:translate-x-0 overflow-y-auto shrink-0 shadow-inner">
             <nav class="mt-4 px-4 text-[14px]">
                 <ul class="space-y-1">
+                    @if (auth()->user()->role != 'tecnico')
+                        
                     <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mb-2 uppercase">Indicadores y Control</li>
+                    @endif
                     <li class="pl-4">
                         @if (auth()->user()->role == 'admin' || auth()->user()->role == 'planificador')
                             <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Administrativas</a>
@@ -146,6 +150,13 @@
             @yield('content')
         </main>
     </div>
+    @if (session()->has('success'))
+                <x-alert type="success" :message="session('success')" class="mb-4" />
+            @endif
+
+            @if (session()->has('error'))
+                <x-alert type="error" :message="session('error')" class="mb-4" />
+            @endif
     @endguest
 
     @stack('scripts')

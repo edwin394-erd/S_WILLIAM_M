@@ -130,7 +130,7 @@
             </div>
             
             @if($agregar && $routePrefix)
-                <a href="{{ route($routePrefix . '.create', $createParams) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">
+                <a href="{{ route($routePrefix . '.create', $createParams) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-300 p-1 transition-colors">
                     <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Nuevo
                 </a>
@@ -138,66 +138,110 @@
         </div>
     </div>
 
-    {{-- Grid de Cards --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <template x-for="record in pagedRecords" :key="record.id">
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                <div class="p-5 flex-grow space-y-3">
-                    @foreach($columns as $field => $label)
-                        <div class="flex flex-col">
-                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ $label }}</span>
-                            <span
-                                class="text-sm font-medium text-gray-800"
-                                x-bind:class="{
-                                    'bg-green-50 text-green-700 px-2 py-1 rounded-full text-center': '{{ $field }}' === 'enviado' && record.{{ $field }} === 'ENVIADO',
-                                    'bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full texte-center': '{{ $field }}' === 'enviado' && record.{{ $field }} !== 'ENVIADO'
-                                }"
-                                x-text="formatValue(record.{{ $field }}) ?? 'N/A'"
-                            ></span>
-                        </div>
-                    @endforeach
+ {{-- Grid de Cards --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <template x-for="record in pagedRecords" :key="record.id">
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col">
+            
+            {{-- Header de la Card --}}
+            <div class="px-5 py-2 bg-slate-50 border-b border-gray-100 rounded-t-xl flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Semana</span>
+                    <span class="text-lg font-bold text-slate-800" x-text="'N° ' + (record.week_number ?? 'N/A')"></span>
                 </div>
-
-                @if($eliminar || $editar || $ver || $compartir_telegram || $descargar_pdf || $enviar_telegram)
-                    <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-end gap-4 text-sm">
-                        @if($ver && $routePrefix)
-                            <a :href="getShowUrl(record.id)" class="text-green-600 hover:text-green-800 font-semibold transition-colors">Asignaciones</a>
-                        @endif
-
-                        @if($editar && $routePrefix)
-                            <a :href="getEditUrl(record.id)" class="text-slate-600 hover:text-slate-800 font-semibold transition-colors">Editar</a>
-                        @endif
-
-                        @if($eliminar && $routePrefix)
-                            <form :action="getDeleteUrl(record.id)" method="POST" @submit="if(!confirm('¿Eliminar este registro?')) $event.preventDefault()">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:text-red-800 font-semibold transition-colors cursor-pointer">
-                                    Eliminar
-                                </button>
-                            </form>
-                        @endif
-
-                     
-
-                        @if($descargar_pdf && $routePrefix)
-                            <a :href="getPdfUrl(record.id)" target="_blank" class="text-purple-600 hover:text-purple-800 font-semibold transition-colors">PDF</a>
-                        @endif
-
-                        @if($enviar_telegram && $routePrefix)
-                            <form :action="getTelegramUrl(record.id)" method="POST" class="inline">
-                                @csrf
-                                <input type="hidden" name="chat_id" :value="record.department?.grupo_telegram_id || ''">
-                                <button type="submit" class="text-cyan-600 hover:text-cyan-800 font-semibold transition-colors cursor-pointer">
-                                    Enviar Telegram
-                                </button>
-                            </form>
-                        @endif
-                    </div>
-                @endif
+                <div class="text-right">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Departamento</span>
+                    <span class="text-sm font-semibold text-slate-700 bg-white px-2.5 py-1 rounded-md border border-gray-200 inline-block" x-text="record.department?.name ?? 'N/A'"></span>
+                </div>
             </div>
-        </template>
-    </div>
+
+            {{-- Cuerpo de la Card --}}
+            {{-- Cuerpo de la Card --}}
+<div class="p-5 flex-grow space-y-3">
+    @php
+        // Marcador para evitar duplicar el bloque de fechas
+        $datesRendered = false;
+    @endphp
+
+    @foreach($columns as $field => $label)
+        {{-- Condición para omitir los campos que ya están en el header --}}
+        @if($field !== 'week_number' && $field !== 'department.name')
+            
+            {{-- Si detectamos una de las fechas, renderizamos ambas juntas en la misma línea --}}
+            @if(($field === 'start_date' || $field === 'end_date'))
+                @if(!$datesRendered)
+                    <div class="grid grid-cols-2 gap-4">
+                        {{-- Fecha de Inicio --}}
+                        <div class="flex flex-col items-start">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ $columns['start_date'] ?? 'Inicio' }}</span>
+                            <span class="text-sm font-medium text-gray-800" x-text="formatValue(record.start_date) ?? 'N/A'"></span>
+                        </div>
+                        {{-- Fecha de Fin --}}
+                        <div class="flex flex-col items-end">
+                            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ $columns['end_date'] ?? 'Fin' }}</span>
+                            <span class="text-sm font-medium text-gray-800" x-text="formatValue(record.end_date) ?? 'N/A'"></span>
+                        </div>
+                    </div>
+                    @php $datesRendered = true; @endphp
+                @endif
+            @else
+                {{-- Resto de las columnas normales --}}
+                <div class="flex flex-col">
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{{ $label }}</span>
+                    <span
+                        class="text-sm font-medium text-gray-800"
+                        x-bind:class="{
+                            'bg-green-50 text-green-700 px-2 py-1 rounded-full text-center block mt-1': '{{ $field }}' === 'enviado' && record.{{ $field }} === 'ENVIADO',
+                            'bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full text-center block mt-1': '{{ $field }}' === 'enviado' && record.{{ $field }} !== 'ENVIADO'
+                        }"
+                        x-text="formatValue({{ str_replace('.', '?.', "record.$field") }}) ?? 'N/A'"
+                    ></span>
+                </div>
+            @endif
+
+        @endif
+    @endforeach
+</div>
+
+            {{-- Acciones (Footer) --}}
+            @if($eliminar || $editar || $ver || $compartir_telegram || $descargar_pdf || $enviar_telegram)
+                <div class="px-5 py-3 bg-gray-50 border-t border-gray-100 rounded-b-xl flex items-center justify-end gap-4 text-sm">
+                    @if($ver && $routePrefix)
+                        <a :href="getShowUrl(record.id)" class="text-green-600 hover:text-green-800 font-semibold transition-colors hover:bg-slate-300 p-1 rounded" title="Asignaciones"><x-svg-orders/></a>
+                    @endif
+
+                    @if($editar && $routePrefix)
+                        <a :href="getEditUrl(record.id)" class="text-slate-600 hover:text-slate-800 font-semibold transition-colors hover:bg-slate-300 p-1 rounded">Editar</a>
+                    @endif
+
+                    @if($eliminar && $routePrefix)
+                        <form :action="getDeleteUrl(record.id)" method="POST" @submit="if(!confirm('¿Eliminar este registro?')) $event.preventDefault()">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="text-red-600 hover:text-red-800 font-semibold transition-colors cursor-pointer hover:bg-slate-300 p-1 rounded" title="Eliminar Sabana">
+                                <x-svg-delete/>
+                            </button>
+                        </form>
+                    @endif
+
+                    @if($descargar_pdf && $routePrefix)
+                        <a :href="getPdfUrl(record.id)" target="_blank" class="text-purple-600 hover:text-purple-800 font-semibold transition-colors hover:bg-slate-300 p-1 rounded" title="Generar PDF"><x-svg-pdf/></a>
+                    @endif
+
+                    @if($enviar_telegram && $routePrefix)
+                        <form :action="getTelegramUrl(record.id)" method="POST" class="inline">
+                            @csrf
+                            <input type="hidden" name="chat_id" :value="record.department?.grupo_telegram_id || ''">
+                            <button type="submit" class="text-cyan-600 hover:text-cyan-800 font-semibold transition-colors cursor-pointer hover:bg-slate-300 p-1 rounded" title="Enviar a Telegram">
+                                <x-svg-telegram/>
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            @endif
+        </div>
+    </template>
+</div>
 
     {{-- Estado Vacío --}}
     <div x-show="filteredRecords.length === 0" class="py-20 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">

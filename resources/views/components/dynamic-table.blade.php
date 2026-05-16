@@ -61,7 +61,7 @@ x-cloak
         }
      }">
 
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-0">
         {{-- Buscador con Alpine --}}
         @if($buscable)
             <div class="relative">
@@ -101,10 +101,10 @@ x-cloak
             <thead class="text-sm text-body bg-neutral-secondary-soft border-b border-default">
                 <tr>
                     @foreach($columns as $field => $label)
-                        <th scope="col" class="px-6 py-3 font-medium">{{ $label }}</th>
+                        <th scope="col" class="px-6 py-1 font-medium">{{ $label }}</th>
                     @endforeach
                     @if($eliminar || $editar || $ver)
-                        <th scope="col" class="px-6 py-3 font-medium text-center">Acciones</th>
+                        <th scope="col" class="px-6 py-2 font-medium text-center">Acciones</th>
                     @endif
                 </tr>
             </thead>

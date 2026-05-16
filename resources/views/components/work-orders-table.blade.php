@@ -81,7 +81,7 @@
         {{-- Listado de Órdenes --}}
         <template x-for="order in pagedRecords" :key="order.id">
             
-            <div class="bg-white shadow-md rounded-lg overflow-hidden border border-gray-300 text-xs transition hover:-translate-y-0.5">
+            <div class="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-300 text-xs ">
                  {{-- Encabezado --}}
         <div class="flex bg-slate-600 text-white font-bold uppercase p-2 items-center">
             <div class="w-10 text-center">AR</div>
@@ -91,7 +91,7 @@
             <div class="w-32 px-2 border-l border-gray-600">Instalación</div>
             <div class="w-24 text-right px-2 border-l border-gray-600">Impacto</div>
             <div class="w-24 text-right px-2 border-l border-gray-600">Equipo</div>
-            @if($editar || $eliminar || $ver)
+            @if($editar || $eliminar || $ver || $reportar)
                 <div class="w-32 text-center px-2 border-l border-gray-600">Gestión</div>
             @endif
         </div>
@@ -127,8 +127,12 @@
                             </form>
                         @endif
                         @if($reportar)
-                            <a :href="getReportUrl(order.id, order.tasks[0]?.discipline_id ?? 'N/A')" class="text-yellow-600 hover:text-yellow-800" title="Reportar Incidencia">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <a :href="getReportUrl(order.id, order.tasks[0]?.discipline_id ?? 'N/A')"
+                               title="Reportar Actividad"
+                               class="inline-flex items-center rounded-full p-1 transition"
+                               >
+                                <x-svg-check :pxls="20" class="w-5 h-5" />
+
                             </a>
                         @endif
                     </div>
@@ -148,7 +152,10 @@
                             <span class="text-slate-800" x-text="(task.time_start.includes('T') ? task.time_start.split('T')[1].slice(0,5) : task.time_start.slice(0,5)) + ' - ' + (task.time_end.includes('T') ? task.time_end.split('T')[1].slice(0,5) : task.time_end.slice(0,5))"></span>
                         </div>
                         @if($editar || $eliminar || $ver || $reportar)
-                            <div class="w-32 px-2 border-l border-gray-200"></div> {{-- Espacio para alinear con acciones de arriba --}}
+                            <div class="w-32 px-2 border-l border-gray-200">
+                                 <span class="inline-flex items-center justify-center ml-3 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                                  :class="task.status === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' : task.status === 'completado' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'"
+                                  x-text="task.status ?? 'S/D'"></span></div> {{-- Espacio para alinear con acciones de arriba --}}
                         @endif
                     </div>
                     

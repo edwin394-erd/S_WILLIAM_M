@@ -261,6 +261,9 @@
         </tr> --}}
     </tbody>
 </table>
+
+@if($worksheet->workOrders->where('is_high_risk', true)->count() > 0)
+
 <div style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #ff0000; margin-top: 25px; margin-bottom: 5px;">
     RESUMEN SEMANAL - TRABAJOS ALTO RIESGO
 </div>
@@ -340,5 +343,6 @@
         </tr>
     </tbody>
 </table>
+@endif
 </body>
 </html>

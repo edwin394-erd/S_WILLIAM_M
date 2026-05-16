@@ -15,7 +15,15 @@
                      :required="true" />
         </div>
 
-        <button type="submit" class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded">Crear</button>
+        <div class="mb-4">
+            <x-input :label="'Id Telegram'" 
+                     :name="'grupo_telegram_id'" 
+                     :type="'text'" 
+                     :placeholder="'Ingrese el ID de Telegram para notificaciones'" 
+                     :required="true" />
+        </div>
+
+         <x-confirm-cancel/>
     </form>
 </div>
 @endsection

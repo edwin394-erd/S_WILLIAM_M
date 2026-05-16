@@ -163,13 +163,15 @@ class WorkOrderController extends Controller
             $query->where('discipline_id', $id_discipline)->with('discipline');                  
         }, 'installation', 'equipment'])->get();
 
+        $disciplina = Discipline::find($id_discipline);
         // dd($workOrders);
 
         if(auth()->user()->discipline_id !== (int)$id_discipline) {
             abort(403, 'No tienes permiso para ver estas actividades.');
         }
 
-        return view('actividades')->with('workOrders', $workOrders);
+
+        return view('actividades')->with('workOrders', $workOrders)->with('disciplina', $disciplina);
     }
 
     public function formulario($id_discipline, $work_order_id)
@@ -181,6 +183,7 @@ class WorkOrderController extends Controller
         if(auth()->user()->discipline_id !== (int)$id_discipline) {
             abort(403, 'No tienes permiso para ver este formulario.');
         }
+
 
         return view('workorders.reportar')->with('workOrder', $workOrder);
     }

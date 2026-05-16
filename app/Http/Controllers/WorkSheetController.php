@@ -180,6 +180,11 @@ class WorkSheetController extends Controller
 
 public function sendToTelegram(Request $request, $id)
 {
+
+    $cantidad_ordenes = WorkSheet::findOrFail($id)->workOrders()->count();
+    if ($cantidad_ordenes === 0) {
+        return back()->with('error', 'No se puede enviar a Telegram porque esta sabana no tiene asignaciones asociadas.');
+    }
     $worksheet = WorkSheet::with([
         'department',
         'workOrders.tasks.discipline',
@@ -217,6 +222,8 @@ public function sendToTelegram(Request $request, $id)
     unlink($pdfPath);
 
     WorkSheet::where('id', $id)->update(['enviado' => 'ENVIADO']);
+
+
 
     if ($response->successful()) {
         return back()->with('success', 'PDF enviado correctamente a Telegram.');

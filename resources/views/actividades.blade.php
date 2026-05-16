@@ -1,8 +1,10 @@
 @extends('layouts.app')
 
+@section('title', 'Actividades de la disciplina: '. $disciplina->name)
+
 @section('content')
-<div class="p-6">
-    <h1 class="text-2xl font-bold mb-4">Actividades de tu disciplina</h1>
+
+
 
    <x-work-orders-table 
     :records="$workOrders"
