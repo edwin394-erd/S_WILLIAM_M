@@ -36,7 +36,7 @@
             </div>
             <div class="hidden sm:block text-right">
                 <p class="text-[10px] md:text-xs text-gray-600 font-bold uppercase">ROL: {{ auth()->user()->role }}</p>
-                <p class="text-[11px] md:text-[12px] text-gray-500">{{ now()->translatedFormat('l d \d\e F \d\e Y') }}</p>
+                <p class="text-[11px] md:text-[12px] text-gray-500">{{ now('America/Caracas')->translatedFormat('l d \d\e F \d\e Y H:i') }}</p>
             </div>
         </div>
         <!-- Barra de Bienvenida -->
@@ -143,7 +143,7 @@
         <header class="bg-white border-b-4 border-pdvsa-red shadow-sm shrink-0">
             <div class="flex justify-between items-center px-6 py-2">
                 <x-pdvs-logo class="h-10"/>
-                <p class="hidden md:block text-[14px] text-gray-500">{{ now()->translatedFormat('l d \d\e F \d\e Y') }}</p>
+                <p class="hidden md:block text-[14px] text-gray-500">{{ now('America/Caracas')->translatedFormat('l d \d\e F \d\e Y H:i') }}</p>
             </div>
         </header>
         <main class="flex-1 flex flex-col items-center justify-center p-4">
