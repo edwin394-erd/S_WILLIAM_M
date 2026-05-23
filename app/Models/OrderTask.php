@@ -4,13 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+use App\Models\OrderTaskEvidence;
 
 class OrderTask extends Model
 {
     protected $fillable = [
         'work_order_id', 'department_id', 'discipline_id',
         'date', 'time_start', 'time_end',
-        'status', 'observation', 'evidence_path'
+        'status', 'observation', 'evidence_path', 'user_report_id'
     ];
 
     protected $casts = [
@@ -31,5 +34,10 @@ class OrderTask extends Model
     public function discipline(): BelongsTo
     {
         return $this->belongsTo(Discipline::class);
+    }
+
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(OrderTaskEvidence::class, 'order_task_id');
     }
 }

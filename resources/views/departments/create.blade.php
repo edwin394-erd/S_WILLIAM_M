@@ -23,7 +23,7 @@
                      :required="true" />
         </div>
 
-         <x-confirm-cancel/>
+         <x-confirm-cancel backUrl="{{ route('admin.departments.index') }}"/>
     </form>
 </div>
 @endsection

@@ -118,21 +118,21 @@ x-cloak
                         
                         @if($eliminar || $editar || $ver)
                             <td class="px-6 py-2 whitespace-nowrap text-center">
-                                <div class="inline-flex items-center justify-center gap-2">
+                                <div class="inline-flex items-center justify-center gap-1">
                                     @if($ver && $routePrefix)
-                                        <a :href="getShowUrl(record.id)" class="text-green-600 hover:underline">                                                <x-svg-show/>
-</a>
+                                        <a :href="getShowUrl(record.id)" class="text-green-600 hover:underline hover:bg-slate-300 p-1 rounded" >                                                <x-svg-show/>
+                                        </a>
                                     @endif
 
                                     @if($editar && $routePrefix)
-                                        <a :href="getEditUrl(record.id)" class="text-slate-600 hover:underline"><x-svg-edit/></a>
+                                        <a :href="getEditUrl(record.id)" class="text-slate-600 hover:underline hover:bg-slate-300 p-1 rounded"><x-svg-edit/></a>
                                     @endif
 
                                     @if($eliminar && $routePrefix)
                                         <form :action="getDeleteUrl(record.id)" method="POST" class="inline-flex items-center" @submit="if(!confirm('¿Estás seguro de eliminar este registro?')) $event.preventDefault()">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="text-red-600 hover:underline cursor-pointer">
+                                            <button type="submit" class="text-red-600 hover:underline cursor-pointer hover:bg-slate-300 p-1 rounded">
                                                 <x-svg-delete/>
                                             </button>
                                         </form>

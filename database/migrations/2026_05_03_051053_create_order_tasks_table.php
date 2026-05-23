@@ -22,9 +22,10 @@ return new class extends Migration
      
             
             // Estado y Evidencia
-            $table->enum('status', ['PENDIENTE', 'CUMPLIDO', 'NO_CUMPLIDO', 'EN_PROGRESO'])->default('PENDIENTE');
+            $table->enum('status', ['PENDIENTE', 'COMPLETADO', 'NO COMPLETADO', 'POR REVISION'])->default('PENDIENTE');
             $table->text('observation')->nullable(); // Motivo de no cumplimiento
             $table->string('evidence_path')->nullable(); // Ruta de la foto
+            $table->foreignId('user_report_id')->nullable()->constrained('users');
             
             $table->timestamps();
         });

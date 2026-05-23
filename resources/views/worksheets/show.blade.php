@@ -6,10 +6,9 @@
      <x-work-orders-table 
     :records="$worksheet->workOrders" 
     :worksheetId="$worksheet->id"
-    :editar="true"
     :eliminar="true"
-    {{-- :ver="true" --}}
-    :reportar="false"
+    :reportar="true"
+    :extraplan="$extraplan"
     routePrefix="admin.workorders"
 />
 </div>

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use App\Models\OrderTask;
 
 class WorkSheet extends Model
 {
@@ -12,6 +14,11 @@ class WorkSheet extends Model
     public function workOrders(): HasMany
     {
         return $this->hasMany(WorkOrder::class);
+    }
+
+    public function tasks(): HasManyThrough
+    {
+        return $this->hasManyThrough(OrderTask::class, WorkOrder::class, 'work_sheet_id', 'work_order_id', 'id', 'id');
     }
 
     public function department()

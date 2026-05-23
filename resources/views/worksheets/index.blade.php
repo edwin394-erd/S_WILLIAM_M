@@ -10,13 +10,16 @@
 
   @php
     $columnas = [
-        'week_number'     => 'Semana',
-        'department.name'       => 'Departamento',
-        'start_date'      => 'Fecha de Inicio',
-        'end_date'        => 'Fecha de Fin', 
+        'week_number' => 'Semana',
+        'department.name' => 'Departamento',
+        'start_date' => 'Fecha de Inicio',
+        'end_date' => 'Fecha de Fin',
         'work_orders_count' => 'Órdenes de Trabajo',
+        'pending_tasks_count' => 'Pendientes',
+        'review_tasks_count' => 'Por revisión',
+        'completed_tasks_count' => 'Completadas',
+        'not_completed_tasks_count' => 'No completadas',
         'enviado' => 'ESTATUS',
-
     ];
 @endphp
     

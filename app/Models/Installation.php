@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Installation extends Model
 {
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'impact'];
 
     public function workOrders()
     {

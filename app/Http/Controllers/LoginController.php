@@ -10,8 +10,6 @@ class LoginController extends Controller
 {
     public function store(Request $request)
 {
-   
-
     $credentials = $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required'],
@@ -20,24 +18,51 @@ class LoginController extends Controller
     if (Auth::attempt($credentials)) {
         $request->session()->regenerate();
 
-        // Lógica de redirección basada en el ROL definido en nuestra migración
-        if (Auth::user()->role === 'admin' || Auth::user()->role === 'planificador') {
-            return redirect()->route('admin.stats');// Verá estadísticas y creará la sábana
-        }
+        if (Auth::user()->role === 'tecnico') {
+            $intended = $request->session()->get('url.intended');
 
-        if (Auth::user()->role === 'supervisor') {
-            dd('supervisor');
-            return redirect()->route('supervisor.stats'); // Verá estadísticas y creará la sábana
-        }
-
-            if (Auth::user()->role === 'tecnico') {
-            $disciplineId = Auth::user()->discipline_id; // Asumiendo que el usuario tiene este campo
-            return redirect()->route('tecnico.actividades', ['id_disciplina' => $disciplineId]);
-        }
+            if ($this->shouldIgnoreIntendedForTechnician($intended)) {
+                $request->session()->forget('url.intended');
             }
+        }
 
-   $request->session()->flash('error', 'Las credenciales proporcionadas no son correctas.');
+        $fallback = $this->getFallbackRedirect();
+
+        return redirect()->intended($fallback);
+    }
+
+    $request->session()->flash('error', 'Las credenciales proporcionadas no son correctas.');
     return back();
+}
+
+private function shouldIgnoreIntendedForTechnician(?string $intended): bool
+{
+    if (! $intended) {
+        return false;
+    }
+
+    $path = parse_url($intended, PHP_URL_PATH) ?: '';
+
+    return str_contains($path, '/worksheets')
+        || str_contains($path, '/workorders')
+        || str_contains($path, '/admin');
+}
+
+private function getFallbackRedirect()
+{
+    if (Auth::user()->role === 'admin' || Auth::user()->role === 'planificador') {
+        return route('admin.stats');
+    }
+
+    if (Auth::user()->role === 'supervisor') {
+        return route('supervisor.stats');
+    }
+
+    if (Auth::user()->role === 'tecnico') {
+        return route('tecnico.actividades', ['id_disciplina' => Auth::user()->discipline_id]);
+    }
+
+    return route('home');
 }
 
     public function logout(Request $request)

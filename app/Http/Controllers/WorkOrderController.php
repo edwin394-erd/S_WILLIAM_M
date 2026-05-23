@@ -4,13 +4,19 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\WorkOrder;
 use App\Models\Installation;
 use App\Models\Equipment;
 use App\Models\WorkSheet;
 use App\Models\Discipline;
 use App\Models\OrderTask;
+use App\Models\OrderTaskEvidence;
+use Illuminate\Support\Facades\Storage;
+
 
 class WorkOrderController extends Controller
 {
@@ -21,15 +27,30 @@ class WorkOrderController extends Controller
 
     public function create(Request $request)
     {
+        
         $installations = Installation::all();
         $equipment = Equipment::all();
         $worksheet = null;
 
         if ($request->filled('worksheet_id')) {
             $worksheet = WorkSheet::find($request->query('worksheet_id'));
+
+            if (!$worksheet) {
+                return redirect()->route('admin.worksheets.index')->with('error', 'Hoja de trabajo no encontrada.');
+            }
+          
+            
+            if ($worksheet->start_date < Carbon::today('America/Caracas')->toDateString() && ! $request->boolean('is_extraplan')) {
+                return redirect()->route('admin.worksheets.show', $worksheet->id)->with('error', 'No se pueden agregar órdenes a una sabana pasada.');
+            }
         }
 
-        $disciplines = $worksheet ? $worksheet->department->disciplines : collect();
+        $disciplines = collect();
+        if ($worksheet) {
+            $disciplines = $worksheet->department->disciplines;
+        } elseif ($request->filled('is_extraplan')) {
+            $disciplines = Discipline::all();
+        }
         $nextOdmNumber = WorkOrder::nextOdmNumber();
 
         return view('workorders.create')
@@ -54,6 +75,7 @@ class WorkOrderController extends Controller
         'time_start'       => 'nullable|date_format:H:i',
         'time_end'         => 'nullable|date_format:H:i',
         'high_risk'        => 'sometimes|boolean',
+        'is_extraplan'     => 'sometimes|boolean',
     ]);
 
     $disciplineId = $request->discipline_id;
@@ -70,7 +92,7 @@ class WorkOrderController extends Controller
     $dateTimeStart = Carbon::parse("{$request->date} {$schedule['time_start']}");
     $dateTimeEnd = Carbon::parse("{$request->date} {$schedule['time_end']}");
 
-    return DB::transaction(function () use ($request, $disciplineId, $installation, $equipment, $dateTimeStart, $dateTimeEnd) {
+    $workOrder = DB::transaction(function () use ($request, $disciplineId, $installation, $equipment, $dateTimeStart, $dateTimeEnd) {
         $odmNumber = WorkOrder::nextOdmNumber();
 
         $workOrder = WorkOrder::create([
@@ -82,6 +104,7 @@ class WorkOrderController extends Controller
             'impacto'         => $request->impact,
             'accion_requerida'=> $request->accion_requerida,
             'is_high_risk'    => $request->boolean('high_risk'),
+            'is_extraplan'    => $request->boolean('is_extraplan'),
         ]);
 
         $workOrder->tasks()->create([
@@ -91,14 +114,89 @@ class WorkOrderController extends Controller
             'time_end'      => $dateTimeEnd,
         ]);
 
-        $worksheet = WorkSheet::find($request->worksheet_id);
-        WorkSheet::where('id', $worksheet->id)->update(['enviado' => 'POR ENVIAR']);
+        if (! $request->boolean('is_extraplan')) {
+            $worksheet = WorkSheet::find($request->worksheet_id);
+            WorkSheet::where('id', $worksheet->id)->update(['enviado' => 'POR ENVIAR']);
+        }
 
-
-        return redirect()->route('admin.worksheets.show', $request->worksheet_id)
-            ->with('success', "Orden {$odmNumber} creada exitosamente.");
+        return $workOrder;
     });
+
+    $message = "Orden {$workOrder->odm_number} creada exitosamente.";
+
+    if ($workOrder->is_extraplan) {
+        $sent = $this->sendExtraplanToTelegram($workOrder);
+
+        if ($sent) {
+            $message .= ' Extraplan enviado automáticamente a Telegram.';
+        } else {
+            $message .= ' No se pudo enviar automáticamente a Telegram al grupo del departamento.';
+        }
+    }
+
+    return redirect()->route('admin.worksheets.show', $request->worksheet_id)
+        ->with('success', $message);
 }
+
+    private function sendExtraplanToTelegram(WorkOrder $workOrder): bool
+    {
+        try {
+            $workOrder->load(['workSheet.department', 'installation', 'equipment', 'tasks.discipline']);
+
+            $worksheet = $workOrder->workSheet;
+            $department = $worksheet->department;
+
+            if (! $department || ! $department->grupo_telegram_id) {
+                return false;
+            }
+
+            $worksheet->setRelation('workOrders', collect([$workOrder]));
+            $worksheet->dates = $worksheet->workOrders->groupBy(function ($order) {
+                return Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
+            });
+
+            $departmentName = str_replace(' ', '-', $department->name);
+            $timestamp = now()->format('d-m-Y-H');
+            $fileName = "Extraplan-{$workOrder->odm_number}-{$departmentName}-{$timestamp}.pdf";
+            $pdfPath = storage_path('app/public/' . $fileName);
+
+            $pdf = Pdf::loadView('worksheets.pdf', ['worksheet' => $worksheet, 'includeSummary' => false])->setPaper('a4', 'portrait');
+            $pdf->save($pdfPath);
+
+            $token = '8694198608:AAF02Ce6Kfm1dv2as1HW-gCdqP9jFHU0yg8';
+            $chatId = $department->grupo_telegram_id;
+
+            $response = Http::attach(
+                'document',
+                file_get_contents($pdfPath),
+                $fileName
+            )->post("https://api.telegram.org/bot{$token}/sendDocument", [
+                'chat_id' => $chatId,
+                'caption' => "Nuevo extraplan agregado. ODM: {$workOrder->odm_number}",
+            ]);
+
+            unlink($pdfPath);
+
+            if (! $response->successful()) {
+                Log::error('Fallo envío de extraplan a Telegram', [
+                    'work_order_id' => $workOrder->id,
+                    'chat_id' => $chatId,
+                    'response' => $response->json(),
+                ]);
+
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $exception) {
+            Log::error('Error al generar/enviar extraplan a Telegram', [
+                'work_order_id' => $workOrder->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
 
     public function scheduleInfo(Request $request)
     {
@@ -146,22 +244,53 @@ class WorkOrderController extends Controller
             $workOrder->delete();
         });
 
-        WorkSheet::where('id', $worksheet->id)->update('enviado', 'POR ENVIAR');
+        // CORRECCIÓN: El método update requiere un array asociativo
+        WorkSheet::where('id', $worksheet->id)->update(['enviado' => 'POR ENVIAR']);
 
         return redirect()->route('admin.worksheets.show', $worksheet->id)
             ->with('success', "Orden {$workOrder->odm_number} eliminada correctamente.");
     }
 
+    private function getCurrentWeekBoundaries(): array
+    {
+        $today = Carbon::now('America/Caracas')->startOfDay();
+        $weekday = $today->dayOfWeekIso; // 1 = Monday, 7 = Sunday
+
+        if ($weekday >= 4) {
+            $weekStart = Carbon::parse('thursday this week', 'America/Caracas')->startOfDay();
+        } else {
+            $weekStart = Carbon::parse('thursday last week', 'America/Caracas')->startOfDay();
+        }
+
+        $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
+
+        return [
+            'start' => $weekStart,
+            'end' => $weekEnd,
+        ];
+    }
+
     public function actividades($id_discipline)
     {
-        $today = Carbon::today('America/Caracas')->toDateString();
+        Discipline::findOrFail($id_discipline);
+        $boundaries = $this->getCurrentWeekBoundaries();
 
-        $workOrders = WorkOrder::whereHas('tasks', function ($query) use ($id_discipline, $today) {
+        $workOrders = WorkOrder::whereHas('tasks', function ($query) use ($id_discipline, $boundaries) {
             $query->where('discipline_id', $id_discipline)
-                  ->whereDate('date', $today);
-        })->with(['tasks' => function ($query) use ($id_discipline, $today) {
-            $query->where('discipline_id', $id_discipline)->with('discipline');                  
-        }, 'installation', 'equipment'])->get();
+                ->whereBetween('date', [$boundaries['start']->toDateString(), $boundaries['end']->toDateString()]);
+        })
+        ->with([
+            'tasks' => function ($query) use ($id_discipline, $boundaries) {
+                $query->where('discipline_id', $id_discipline)
+                    ->whereBetween('date', [$boundaries['start']->toDateString(), $boundaries['end']->toDateString()]);
+            },
+            'tasks.evidences',
+            'installation',
+            'equipment',
+        ])
+        ->get();
+
+
 
         $disciplina = Discipline::find($id_discipline);
         // dd($workOrders);
@@ -170,12 +299,34 @@ class WorkOrderController extends Controller
             abort(403, 'No tienes permiso para ver estas actividades.');
         }
 
-
-        return view('actividades')->with('workOrders', $workOrders)->with('disciplina', $disciplina);
+        return view('actividades')
+            ->with('workOrders', $workOrders)
+            ->with('disciplina', $disciplina)
+            ->with('weekStart', $boundaries['start'])
+            ->with('weekEnd', $boundaries['end']);
     }
 
     public function formulario($id_discipline, $work_order_id)
     {
+        if(auth()->user()->discipline_id !== (int)$id_discipline) {
+            abort(403, 'No tienes permiso para ver este formulario.');
+        }
+
+        if (!auth()->user()->discipline_id) {
+            abort(403, 'No tienes una disciplina asignada. Contacta al administrador.');
+        }
+
+        $tasks_uncompleted = OrderTask::where('work_order_id', $work_order_id)
+            ->where('discipline_id', $id_discipline)
+            ->where('status', 'PENDIENTE')
+            ->count();
+
+            if ($tasks_uncompleted < 1) {
+                return redirect()->route('tecnico.actividades', $id_discipline)->with('error', 'No puedes reportar esta orden porque no tienes actividades pendientes.');
+            }
+        
+
+        
         $workOrder = WorkOrder::with(['tasks' => function ($query) use ($id_discipline) {
             $query->where('discipline_id', $id_discipline);
         }, 'installation', 'equipment'])->findOrFail($work_order_id);
@@ -187,11 +338,173 @@ class WorkOrderController extends Controller
 
         return view('workorders.reportar')->with('workOrder', $workOrder);
     }
- 
 
+public function reportar(Request $request, $id)
+    {
+        if ($request->hasFile('file')) {
+            $request->validate([
+                'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+                'order_task_id' => 'required|integer|exists:order_tasks,id',
+            ]);
+
+            $task = OrderTask::findOrFail($request->order_task_id);
+
+            Storage::makeDirectory('public/evidences');
+
+            $file = $request->file('file');
+            $path = $file->store('evidences', 'public');
+
+            $evidence = OrderTaskEvidence::create([
+                'order_task_id' => $task->id,
+                'path'          => $path,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'evidence_id' => $evidence->id,
+                'path' => Storage::url($path),
+            ]);
+        }
+
+        $user_id = auth()->id();
+        $request->validate([
+            'codigo' => 'required|string',
+            'observacion' => 'required|string',
+            'order_task_id' => 'required|integer|exists:order_tasks,id',
+        ]);
+
+        $task = OrderTask::findOrFail($request->order_task_id);
+
+        $newStatus = 'POR REVISION';
+        if (in_array(auth()->user()->role, ['admin', 'supervisor'])) {
+            if (in_array($task->status, ['POR REVISION', 'COMPLETADO'])) {
+                $newStatus = 'COMPLETADO';
+            }
+        }
+
+        $task->update([
+            'observation' => $request->observacion,
+            'status' => $newStatus,
+            'user_report_id' => $user_id,
+        ]);
+
+        if ($newStatus === 'POR REVISION') {
+            $this->notifyTaskReportToTelegram($task);
+        }
+
+        if (in_array(auth()->user()->role, ['admin', 'supervisor'])) {
+            return redirect()->back()->with('success', 'Observación guardada con éxito.');
+        }
+
+        return redirect()->route('tecnico.actividades', auth()->user()->discipline_id)
+                         ->with('success', 'Actividad reportada y pre-cerrada con éxito.');
+    }
+
+    private function notifyTaskReportToTelegram(OrderTask $task): bool
+    {
+        try {
+            $task->load('workOrder.workSheet.department');
+
+            $department = optional($task->workOrder)->workSheet->department;
+            if (! $department || ! $department->grupo_telegram_id) {
+                return false;
+            }
+
+            $worksheetLink = route('admin.worksheets.show', $task->workOrder->work_sheet_id);
+            $text = "La actividad de la orden {$task->workOrder->odm_number} ha sido reportada y ahora está POR REVISION.\n" .
+                    "Ver sabana: {$worksheetLink}";
+
+            $token = '8694198608:AAF02Ce6Kfm1dv2as1HW-gCdqP9jFHU0yg8';
+            $chatId = $department->grupo_telegram_id;
+
+            $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+            ]);
+
+            if (! $response->successful()) {
+                Log::error('Fallo envío de notificación de reporte a Telegram', [
+                    'order_task_id' => $task->id,
+                    'chat_id' => $chatId,
+                    'response' => $response->json(),
+                ]);
+
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $exception) {
+            Log::error('Error al notificar reporte de tarea a Telegram', [
+                'order_task_id' => $task->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    public function completeClosure(Request $request, $workOrderId)
+    {
+        if (! in_array(auth()->user()->role, ['admin', 'supervisor'], true)) {
+            abort(403, 'No tienes permiso para completar el cierre.');
+        }
+
+        $request->validate([
+            'codigo' => 'required|string',
+            'observacion' => 'required|string',
+            'order_task_id' => 'required|integer|exists:order_tasks,id',
+        ]);
+
+        $task = OrderTask::findOrFail($request->order_task_id);
+        $workOrder = WorkOrder::findOrFail($workOrderId);
+
+        if ($task->work_order_id !== $workOrder->id) {
+            abort(404, 'La tarea no pertenece a esta orden.');
+        }
+
+        if (! in_array($task->status, ['POR REVISION', 'COMPLETADO'], true)) {
+            abort(403, 'No se puede completar el cierre de una actividad no reportada.');
+        }
+
+        $task->update([
+            'observation' => $request->observacion,
+            'status' => 'COMPLETADO',
+            'user_report_id' => auth()->id(),
+        ]);
+
+        return redirect()->back()->with('success', 'Observación guardada y orden completada.');
+    }
+
+    public function extraPlans()
+    {
+        $extraplans = WorkOrder::where('is_extraplan', true)->get();
+        $worksheet = WorkSheet::whereDate('start_date', '<=', Carbon::today('America/Caracas')->toDateString())
+            ->whereDate('end_date', '>=', Carbon::today('America/Caracas')->toDateString())
+            ->first();
+
+        if (!$worksheet) {
+            $worksheet = WorkSheet::latest('start_date')->first();
+        }
+
+        return view('extraplans.index')
+            ->with('extraplans', $extraplans)
+            ->with('worksheetId', optional($worksheet)->id);
+    }
+
+    public function historial()
+    {
+        $workOrders = WorkOrder::with(['tasks', 'installation', 'equipment', 'workSheet', 'tasks.discipline', 'tasks.evidences'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('workorders.historial')
+            ->with('workOrders', $workOrders);
+    }
 
     public function show($id)
     {
         // Lógica para mostrar los detalles de una orden de trabajo específica
     }
+
+
 }

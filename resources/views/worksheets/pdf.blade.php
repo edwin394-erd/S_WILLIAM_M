@@ -39,7 +39,10 @@
     </style>
 </head>
 <body>
-    @php \Carbon\Carbon::setLocale('es'); @endphp
+    @php
+        \Carbon\Carbon::setLocale('es');
+        $includeSummary = $includeSummary ?? true;
+    @endphp
 
     <table class="top-info-table">
         <tr>
@@ -182,9 +185,10 @@
     }
 </style>
 
-<div class="page-break"></div>
+@if($includeSummary)
+    <div class="page-break"></div>
 
-<div style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; margin-bottom: 5px;">RESUMEN SEMANAL</div>
+    <div style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; margin-bottom: 5px;">RESUMEN SEMANAL</div>
 <table class="tabla-resumen">
     <thead>
         <tr class="bg-header-resumen">
@@ -262,11 +266,11 @@
     </tbody>
 </table>
 
-@if($worksheet->workOrders->where('is_high_risk', true)->count() > 0)
+    @if($worksheet->workOrders->where('is_high_risk', true)->count() > 0)
 
-<div style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #ff0000; margin-top: 25px; margin-bottom: 5px;">
-    RESUMEN SEMANAL - TRABAJOS ALTO RIESGO
-</div>
+    <div style="font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #ff0000; margin-top: 25px; margin-bottom: 5px;">
+        RESUMEN SEMANAL - TRABAJOS ALTO RIESGO
+    </div>
 
 @php
     $highRiskDays = $worksheet->dates->filter(fn($os) => $os->where('is_high_risk', true)->count() > 0);
@@ -343,6 +347,7 @@
         </tr>
     </tbody>
 </table>
+@endif
 @endif
 </body>
 </html>

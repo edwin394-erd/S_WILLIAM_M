@@ -47,12 +47,24 @@ class DepartmentController extends Controller
 
     public function edit($id)
     {
-        // Lógica para mostrar el formulario de edición de un departamento
+        $department = Department::findOrFail($id);
+        return view('departments.edit')->with('department', $department);
     }
 
     public function update(Request $request, $id)
     {
-        // Lógica para actualizar un departamento existente
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'grupo_telegram_id' => 'nullable|string|max:255',
+        ]);
+
+        $department = Department::findOrFail($id);
+        $department->update([
+            'name' => $request->name,
+            'grupo_telegram_id' => $request->grupo_telegram_id,
+        ]);
+
+        return redirect()->route('admin.departments.index')->with('success', 'Departamento actualizado correctamente.');
     }
 
     public function destroy($id)

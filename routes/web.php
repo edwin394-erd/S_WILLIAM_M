@@ -49,8 +49,8 @@ Route::middleware(['auth', CheckTecnico::class])->group(function () {
     Route::get('/disciplina/{id_disciplina}/actividades',[ WorkOrderController::class, 'actividades'])->name('tecnico.actividades');
     Route::get('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'formulario'])->name('tecnico.reportar.formulario');
     Route::post('/disciplina/actividades/{work_order}/reportar', [WorkOrderController::class, 'reportar'])->name('tecnico.reportar');
-    
 });
+
 
 
 
@@ -59,8 +59,8 @@ Route::middleware(['auth', CheckPlanAdmin::class])->group(function () {
     Route::get('worksheets/{worksheet}/pdf', [WorkSheetController::class, 'generatePdf'])->name('admin.worksheets.pdf');
     Route::post('worksheets/{worksheet}/send-telegram', [WorkSheetController::class, 'sendToTelegram'])->name('admin.worksheets.send-telegram');
     Route::get('workorders/schedule-info', [WorkOrderController::class, 'scheduleInfo'])->name('admin.workorders.schedule-info');
-    Route::resource('workorders', WorkOrderController::class)->names('admin.workorders');
-    
+    Route::get('workorders/historial', [WorkOrderController::class, 'historial'])->name('admin.workorders.historial');
+    Route::resource('workorders', WorkOrderController::class)->names('admin.workorders');    
 });
 
 Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(function () {
@@ -82,12 +82,14 @@ Route::middleware(['auth', CheckPlanAdmin::class])->prefix('admin')->group(funct
     Route::resource('equipment', EquipmentController::class)->names('admin.equipment');
     Route::resource('installations', InstallationController::class)->names('admin.installations');
     Route::resource('disciplines', DisciplineController::class)->names('admin.disciplines');
-
+    
 
 });
 
 // Grupo de rutas para los Supervisores (Solo requiere estar logueado)
 Route::middleware(['auth'])->prefix('supervisor')->group(function () {
     Route::get('/tareas', [OrderTaskController::class, 'index']);
-    Route::post('/reportar/{task}', [OrderTaskController::class, 'update']);
+    Route::post('/reportar/{task}', [OrderTaskController::class, 'update'])->name('supervisor.reportar');
 });
+
+Route::middleware(['auth'])->post('/workorders/{work_order}/complete-closure', [WorkOrderController::class, 'completeClosure'])->name('workorders.complete-closure');

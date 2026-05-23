@@ -40,12 +40,12 @@
                 </div>
                  <div class="w-1/2 p-1">
                  <x-select 
-                                name="discipline_id" 
-                                label="Disciplina" 
-                                :options="[]" 
-                                placeholder="Seleccione una disciplina"
-                                required
-                            />
+                    name="discipline_id" 
+                    label="Disciplina" 
+                    :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
+                    placeholder="Seleccione una disciplina"
+                    buscable="true"
+                />
                  </div>
                 
                 
@@ -61,8 +61,7 @@
             
         </div>
 
-        <x-confirm-cancel/>
-
+        <x-confirm-cancel backUrl="{{ route('admin.users.index') }}"/>
         
         
     </form>

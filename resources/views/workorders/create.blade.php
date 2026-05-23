@@ -52,6 +52,9 @@
         @elseif(request('worksheet_id'))
             <input type="hidden" name="worksheet_id" value="{{ request('worksheet_id') }}">
         @endif
+        @if(request('is_extraplan'))
+            <input type="hidden" name="is_extraplan" value="1">
+        @endif
         <div class="mb-4">
             <div class="md:flex">
                 <div class="w-full md:w-1/2 mr-2">
@@ -171,7 +174,7 @@
             </div>
         </div>
 
-        <x-confirm-cancel/>
+        <x-confirm-cancel backUrl="{{ route('admin.worksheets.show', $worksheet->id) }}"/>
     </form>
 
     

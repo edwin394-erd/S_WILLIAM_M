@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>Sistema de Gestión de Órdenes - PDVSA</title>
     <link rel="icon" type="image/png" href="{{ asset('imgs/pdvsaicon.png') }}" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -52,8 +53,8 @@
         <!-- Sidebar Desplegable -->
         <aside 
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-            class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-50 border-r border-gray-300 transition-transform duration-300 transform md:relative md:translate-x-0 overflow-y-auto shrink-0 shadow-inner">
-            <nav class="mt-4 px-4 text-[14px]">
+            class="-translate-x-full fixed inset-y-0 left-0 z-40 w-64 bg-gray-50 border-r border-gray-300 transition-transform duration-300 transform md:relative md:translate-x-0 overflow-y-auto shrink-0 shadow-inner">
+            <nav class="mt-30 md:mt-4 px-4 text-[14px]">
                 <ul class="space-y-1">
                     @if (auth()->user()->role != 'tecnico')
                         
@@ -62,9 +63,16 @@
                     <li class="pl-4">
                         @if (auth()->user()->role == 'admin' || auth()->user()->role == 'planificador')
                             <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Administrativas</a>
+                             <li class="pl-4">
+                        <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                    </li>
                         @elseif(auth()->user()->role == 'supervisor')
                             <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Supervisor</a>
+                             <li class="pl-4">
+                        <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                    </li>
                         @endif
+                       
                     </li>
 
                     @if (auth()->user()->role == 'admin' || auth()->user()->role =='planificador')
@@ -72,6 +80,8 @@
                     <li class="pl-4">
                         <a href="{{ route('admin.worksheets.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Sabanas de Ordenes</a>
                     </li>
+                    
+
                     @endif
 
                     @if (auth()->user()->role == 'admin')
@@ -82,8 +92,8 @@
                     <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Equipos</a></li>
                     <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-semibold">Gestión de Usuarios</a></li>
                     @endif
-
                     @if (auth()->user()->role === "tecnico")
+                    
                     <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Ejecución</li>
                     <li class="pl-4">
                         <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>

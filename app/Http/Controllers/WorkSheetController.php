@@ -8,37 +8,51 @@ use App\Models\WorkSheet;
 use App\Models\Department;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Http;
+use Carbon\Carbon;
 
 class WorkSheetController extends Controller
 {
     public function index()
     {
-        $worksheets = WorkSheet::with('department')->withCount('workOrders')->get();
+        $worksheets = WorkSheet::with('department')
+            ->withCount('workOrders')
+            ->withCount([
+                'tasks as pending_tasks_count' => fn($query) => $query->where('status', 'PENDIENTE'),
+                'tasks as review_tasks_count' => fn($query) => $query->where('status', 'POR REVISION'),
+                'tasks as completed_tasks_count' => fn($query) => $query->where('status', 'COMPLETADO'),
+                'tasks as not_completed_tasks_count' => fn($query) => $query->where('status', 'NO COMPLETADO'),
+            ])
+            ->orderBy('start_date', 'desc')
+            ->get();
+
+        $departmentOptions = ['' => 'Todos los departamentos'] + Department::pluck('name', 'id')->toArray();
         $departmentOptions = ['' => 'Todos los departamentos'] + Department::pluck('name', 'name')->toArray();
 
         return view('worksheets.index')->with('worksheets', $worksheets)->with('departmentOptions', $departmentOptions);
     }
 
 
-    private function getWeekStartWednesday(
+    private function getWeekStartThursday(
         ?string $currentDate = null
     ): string {
         $today = $currentDate ? strtotime($currentDate) : strtotime('today');
-        $weekday = (int) date('N', $today);
+        $weekday = (int) date('N', $today); // 1=Mon .. 7=Sun
 
-        if ($weekday >= 3) {
-            return date('Y-m-d', strtotime('wednesday this week', $today));
+        // If today is Thursday (4) or later, take this week's Thursday, otherwise last week's Thursday
+        if ($weekday >= 4) {
+            return date('Y-m-d', strtotime('thursday this week', $today));
         }
 
-        return date('Y-m-d', strtotime('wednesday last week', $today));
+        return date('Y-m-d', strtotime('thursday last week', $today));
     }
 
     private function resolveWeekNumber(string $weekStartDate): int
     {
         $year = date('Y', strtotime($weekStartDate));
-        $firstWednesday = date('Y-m-d', strtotime("first wednesday of january $year"));
+        // Use first Thursday of January as the anchor so weeks align Thursday->Wednesday
+        $firstThursday = date('Y-m-d', strtotime("first thursday of january $year"));
 
-        return (int) floor((strtotime($weekStartDate) - strtotime($firstWednesday)) / (7 * 24 * 3600)) + 1;
+        return (int) floor((strtotime($weekStartDate) - strtotime($firstThursday)) / (7 * 24 * 3600)) + 1;
     }
 
     public function create()
@@ -47,7 +61,7 @@ class WorkSheetController extends Controller
 
         date_default_timezone_set('America/Caracas');
 
-        $currentStart = $this->getWeekStartWednesday();
+        $currentStart = $this->getWeekStartThursday();
         $nextStart = date('Y-m-d', strtotime('+7 days', strtotime($currentStart)));
 
         $currentWeek = $this->resolveWeekNumber($currentStart);
@@ -80,11 +94,12 @@ class WorkSheetController extends Controller
     {
         date_default_timezone_set('America/Caracas');
 
-        $currentStart = $this->getWeekStartWednesday();
+        $currentStart = $this->getWeekStartThursday();
         $nextStart = date('Y-m-d', strtotime('+7 days', strtotime($currentStart)));
 
         $currentWeek = $this->resolveWeekNumber($currentStart);
         $nextWeek = $this->resolveWeekNumber($nextStart);
+
 
         $request->validate([
             'week_number' => ['required', 'integer', Rule::in([$currentWeek, $nextWeek])],
@@ -97,7 +112,7 @@ class WorkSheetController extends Controller
             ->where('week_number', $request->week_number)
             ->exists();
         if ($departamento_semana_existe) {
-            return back()->withErrors(['department_id' => 'Ya existe una hoja de trabajo para este departamento en esta semana.'])->withInput();
+            return back()->withErrors(['department_id' => 'Ya existe una sabana para este departamento en esta semana.'])->withInput();
         }
 
         WorkSheet::create([
@@ -107,21 +122,29 @@ class WorkSheetController extends Controller
             'department_id' => $request->department_id,
         ]);
 
-        return redirect()->route('admin.worksheets.index')->with('success', 'Hoja de trabajo creada exitosamente.');
+        return redirect()->route('admin.worksheets.index')->with('success', 'Sabana creada exitosamente.');
     }
 
    public function show($id)
 {
-    // Cargamos workOrders y, dentro de ellas, sus tareas Y las disciplinas de esas tareas
+    // Cargamos workOrders y, dentro de ellas, sus tareas, sus disciplinas y sus evidencias
     $worksheet = WorkSheet::with([
         'workOrders.equipment', 
         'workOrders.installation',
-        'workOrders.tasks.discipline' // <-- Agregamos .discipline aquí
+        'workOrders.tasks.discipline',
+        'workOrders.tasks.evidences',
         ])->with('department')->findOrFail($id);
 
-  
+        $extraplan = false;
 
-    return view('worksheets.show')->with('worksheet', $worksheet);
+        // DD($worksheet->start_date . ' < ' . Carbon::today('America/Caracas')->toDateString() . ' && ' . $worksheet->end_date . ' > ' . Carbon::today('America/Caracas')->toDateString());
+        
+        if($worksheet->start_date <= Carbon::today('America/Caracas')->toDateString() && $worksheet->end_date >= Carbon::today('America/Caracas')->toDateString() ){
+            $extraplan = true;
+
+        }
+
+    return view('worksheets.show')->with('worksheet', $worksheet)->with('extraplan', $extraplan ?? false);
 }
 
     public function edit($id)
@@ -146,7 +169,7 @@ class WorkSheetController extends Controller
         $worksheet = WorkSheet::findOrFail($id);
         $worksheet->delete();
 
-        return redirect()->route('admin.worksheets.index')->with('success', 'Hoja de trabajo eliminada exitosamente.');
+        return redirect()->route('admin.worksheets.index')->with('success', 'Sabana eliminada exitosamente.');
     }
 
    public function generatePdf($id)
@@ -160,11 +183,15 @@ class WorkSheetController extends Controller
 
     // Agrupamos las órdenes de trabajo por fecha para que la vista las itere correctamente
     // Usamos 'created_at' o la fecha de la primera tarea como referencia
-    $worksheet->dates = $worksheet->workOrders->groupBy(function($order) {
-        // Si tienes una fecha específica en la orden úsala, 
-        // de lo contrario usamos la fecha de su primera tarea
-        return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
-    });
+    $worksheet->dates = $worksheet->workOrders
+        ->sortBy(function ($order) {
+            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at);
+        })
+        ->groupBy(function($order) {
+            // Si tienes una fecha específica en la orden úsala,
+            // de lo contrario usamos la fecha de su primera tarea
+            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
+        });
 
     $pdf = Pdf::loadView('worksheets.pdf', compact('worksheet'));
 
@@ -192,10 +219,15 @@ public function sendToTelegram(Request $request, $id)
         'workOrders.equipment'
     ])->findOrFail($id);
 
-    // IMPORTANTE: También debemos agrupar aquí porque Telegram usa la misma vista del PDF
-    $worksheet->dates = $worksheet->workOrders->groupBy(function($order) {
-        return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
-    });
+     $worksheet->dates = $worksheet->workOrders
+        ->sortBy(function ($order) {
+            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at);
+        })
+        ->groupBy(function($order) {
+            // Si tienes una fecha específica en la orden úsala,
+            // de lo contrario usamos la fecha de su primera tarea
+            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
+        });
 
     // Generar el PDF con orientación horizontal
     $pdf = Pdf::loadView('worksheets.pdf', compact('worksheet'))->setPaper('a4', 'portrait');

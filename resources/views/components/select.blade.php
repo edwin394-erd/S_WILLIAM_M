@@ -4,25 +4,49 @@
     'options' => [],
     'selected' => null,
     'buscable' => false,
+    'maxVisible' => 10,
 ])
 
 <div {{ $attributes->merge(['class' => 'relative']) }} {{-- 'relative' aquí es vital --}}
-     x-data="{ 
+    x-data="{ 
         open: false,
         search: '',
         selected: @js($selected),
         options: @js($options),
-        get filteredOptions() {
-            if (this.search === '') return this.options;
-            return Object.entries(this.options).reduce((acc, [value, label]) => {
-                if (label.toLowerCase().includes(this.search.toLowerCase())) {
-                    acc[value] = label;
-                }
-                return acc;
-            }, {});
+        maxVisible: @js($maxVisible),
+        showAll: false,
+        dropUp: false,
+        get optionEntries() {
+            if (Array.isArray(this.options)) {
+                return this.options;
+            }
+            return Object.entries(this.options).map(([value, label]) => ({ value, label }));
         },
+        get filteredOptions() {
+            const entries = this.optionEntries;
+            if (this.search === '') return entries;
+            return entries.filter(option => option.label.toLowerCase().includes(this.search.toLowerCase()));
+        },
+        get visibleOptions() {
+            return this.showAll ? this.filteredOptions : this.filteredOptions.slice(0, this.maxVisible);
+        },
+        computeDirection() {
+            // compute whether dropdown should open upwards based on available space
+            const trig = $refs.trigger;
+            const drop = $refs.dropdown;
+            if (!trig || !drop) return;
+            const rect = trig.getBoundingClientRect();
+            // estimate dropdown height
+            const estHeight = Math.min(drop.scrollHeight || 0, window.innerHeight * 0.6);
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            this.dropUp = (spaceBelow < estHeight && spaceAbove > spaceBelow);
+            drop.style.maxHeight = estHeight + 'px';
+        },
+
         displayLabel() {
-            return this.options[this.selected] || '{{ $attributes->get('placeholder') ?? 'Seleccione...' }}';
+            const selectedOption = this.optionEntries.find(option => option.value === this.selected);
+            return selectedOption?.label || '{{ $attributes->get('placeholder') ?? 'Seleccione...' }}';
         }
      }"
      @click.away="open = false">
@@ -34,7 +58,7 @@
     <input type="hidden" name="{{ $name }}" :value="selected">
 
     {{-- Botón / Trigger --}}
-    <div @click="open = !open" 
+    <div x-ref="trigger" @click="open = !open; if(open) { setTimeout(() => computeDirection(), 50) }" 
          class="bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base w-full px-3 py-2.5 shadow-xs cursor-pointer flex justify-between items-center transition-all hover:border-brand">
         <span x-text="displayLabel()" class="truncate"></span>
         <svg class="h-4 w-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -43,10 +67,12 @@
     </div>
 
     {{-- Lista Desplegable --}}
-    <div x-show="open" 
-         x-cloak
-         {{-- Cambios clave: w-full e inset-x-0 para encajar perfectamente --}}
-         class="absolute z-[100] left-0 right-0 w-full mt-1 bg-white border border-gray-300 rounded-base shadow-xl overflow-hidden">
+        <div x-show="open" 
+            x-cloak
+            x-ref="dropdown"
+            :class="dropUp ? 'origin-bottom' : 'origin-top'"
+            :style="dropUp ? `bottom: calc(100% - 1.8rem)` : `top: calc(100% - 0.25rem)`"
+            class="absolute z-[100] left-0 right-0 w-full bg-white border border-gray-300 rounded-base shadow-xl overflow-hidden">
         
         @if($buscable)
             <div class="p-2 border-b border-gray-100 bg-gray-50">
@@ -61,15 +87,19 @@
         @endif
 
         <div class="max-h-60 overflow-y-auto">
-            <template x-for="[value, label] in Object.entries(filteredOptions)" :key="value">
-                <div @click="selected = value; open = false; search = ''; $dispatch('change', value)" 
+            <template x-for="option in visibleOptions" :key="option.value">
+                <div @click="selected = option.value; open = false; search = ''; $dispatch('change', option.value)" 
                      class="px-3 py-2 text-sm cursor-pointer hover:bg-brand hover:text-white transition-colors"
-                     :class="selected == value ? 'bg-brand/10 font-bold text-brand' : 'text-gray-700'"
-                     x-text="label">
+                     :class="selected == option.value ? 'bg-brand/10 font-bold text-brand' : 'text-gray-700'"
+                     x-text="option.label">
                 </div>
             </template>
-            
-            <div x-show="Object.keys(filteredOptions).length === 0" class="px-3 py-3 text-sm text-gray-500 italic text-center">
+
+            <div x-show="!showAll && filteredOptions.length > (maxVisible || 0)" class="px-3 py-2 text-sm text-center border-t border-gray-100">
+                <button type="button" @click="showAll = true" class="text-sm text-blue-600 hover:underline">Mostrar más (+<span x-text="filteredOptions.length - (maxVisible || 0)"></span>)</button>
+            </div>
+
+            <div x-show="filteredOptions.length === 0" class="px-3 py-3 text-sm text-gray-500 italic text-center">
                 No hay coincidencias
             </div>
         </div>
