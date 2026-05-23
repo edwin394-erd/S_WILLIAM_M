@@ -68,9 +68,9 @@
                     </li>
                         @elseif(auth()->user()->role == 'supervisor')
                             <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Supervisor</a>
-                             <li class="pl-4">
+                             {{-- <li class="pl-4">
                         <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
-                    </li>
+                    </li> --}}
                         @endif
                        
                     </li>
