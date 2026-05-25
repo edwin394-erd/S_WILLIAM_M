@@ -55,49 +55,54 @@
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
             class="-translate-x-full fixed inset-y-0 left-0 z-40 w-64 bg-gray-50 border-r border-gray-300 transition-transform duration-300 transform md:relative md:translate-x-0 overflow-y-auto shrink-0 shadow-inner">
             <nav class="mt-30 md:mt-4 px-4 text-[14px]">
+                @php
+                    $role = auth()->user()->role;
+                    $isAdminPlan = in_array($role, ['admin', 'planificador']);
+                    $isSupervisor = $role === 'supervisor';
+                @endphp
+
                 <ul class="space-y-1">
-                    @if (auth()->user()->role != 'tecnico')
-                        
-                    <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mb-2 uppercase">Indicadores y Control</li>
-                    @endif
-                    <li class="pl-4">
-                        @if (auth()->user()->role == 'admin' || auth()->user()->role == 'planificador')
-                            <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Administrativas</a>
+                    @if (! in_array($role, ['tecnico']))
+                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mb-2 uppercase">Indicadores y Control</li>
+
+                        @if ($isAdminPlan)
+                            <li class="pl-4">
+                                <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Administrativas</a>
+                            </li>
+                            <li class="pl-4">
+                                <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                            </li>
+                        @elseif ($isSupervisor)
+                            <li class="pl-4">
+                                <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas del Departamento</a>
+                            </li>
                              <li class="pl-4">
-                        <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
-                    </li>
-                        @elseif(auth()->user()->role == 'supervisor')
-                            <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Supervisor</a>
-                             {{-- <li class="pl-4">
-                        <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
-                    </li> --}}
+                                <a href="{{ route('supervisor.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                            </li>
                         @endif
-                       
-                    </li>
-
-                    @if (auth()->user()->role == 'admin' || auth()->user()->role =='planificador')
-                    <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Operaciones</li>
-                    <li class="pl-4">
-                        <a href="{{ route('admin.worksheets.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Sabanas de Ordenes</a>
-                    </li>
-                    
-
                     @endif
 
-                    @if (auth()->user()->role == 'admin')
-                    <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Configuración</li>
-                    <li class="pl-4"><a href="{{ route('admin.departments.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Departamentos</a></li>
-                    <li class="pl-4"><a href="{{ route('admin.disciplines.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Disciplinas</a></li>
-                    <li class="pl-4"><a href="{{ route('admin.installations.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Instalaciones</a></li>
-                    <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Equipos</a></li>
-                    <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-semibold">Gestión de Usuarios</a></li>
+                    @if ($isAdminPlan || $isSupervisor)
+                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Operaciones</li>
+                        <li class="pl-4">
+                            <a href="{{ $isSupervisor ? route('supervisor.worksheets') : route('admin.worksheets.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Sábanas de Órdenes</a>
+                        </li>
                     @endif
-                    @if (auth()->user()->role === "tecnico")
-                    
-                    <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Ejecución</li>
-                    <li class="pl-4">
-                        <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>
-                    </li>
+
+                    @if ($role === 'admin')
+                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Configuración</li>
+                        <li class="pl-4"><a href="{{ route('admin.departments.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Departamentos</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.disciplines.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Disciplinas</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.installations.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Instalaciones</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Equipos</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-semibold">Gestión de Usuarios</a></li>
+                    @endif
+
+                    @if ($role === 'tecnico')
+                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Ejecución</li>
+                        <li class="pl-4">
+                            <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>
+                        </li>
                     @endif
                 </ul>
             </nav>

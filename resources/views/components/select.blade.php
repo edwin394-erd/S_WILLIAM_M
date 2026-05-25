@@ -5,6 +5,8 @@
     'selected' => null,
     'buscable' => false,
     'maxVisible' => 10,
+    'nullable' => false,
+    'nullableLabel' => null,
 ])
 
 <div {{ $attributes->merge(['class' => 'relative']) }} {{-- 'relative' aquí es vital --}}
@@ -14,13 +16,26 @@
         selected: @js($selected),
         options: @js($options),
         maxVisible: @js($maxVisible),
+        nullable: @js($nullable),
+        nullableLabel: @js($nullableLabel),
         showAll: false,
         dropUp: false,
         get optionEntries() {
+            let entries = [];
             if (Array.isArray(this.options)) {
-                return this.options;
+                entries = this.options;
+            } else {
+                entries = Object.entries(this.options).map(([value, label]) => ({ value, label }));
             }
-            return Object.entries(this.options).map(([value, label]) => ({ value, label }));
+
+            if (this.nullable) {
+                return [{
+                    value: '',
+                    label: this.nullableLabel || '{{ $attributes->get('placeholder') ?? 'Seleccione...' }}',
+                }, ...entries];
+            }
+
+            return entries;
         },
         get filteredOptions() {
             const entries = this.optionEntries;

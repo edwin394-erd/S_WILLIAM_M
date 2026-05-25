@@ -6,10 +6,11 @@
      <x-work-orders-table 
     :records="$worksheet->workOrders" 
     :worksheetId="$worksheet->id"
-    :eliminar="true"
+    :eliminar="auth()->user()->role === 'admin' || auth()->user()->role === 'planificador'"
     :reportar="true"
     :extraplan="$extraplan"
     routePrefix="admin.workorders"
+    :crear="auth()->user()->role === 'admin' || auth()->user()->role === 'planificador'"
 />
 </div>
 

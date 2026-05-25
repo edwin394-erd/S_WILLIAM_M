@@ -70,9 +70,12 @@ class WorkSheetController extends Controller
         $currentEnd = date('Y-m-d', strtotime('+6 days', strtotime($currentStart)));
         $nextEnd = date('Y-m-d', strtotime('+6 days', strtotime($nextStart)));
 
+        $currentYear = date('Y', strtotime($currentStart));
+        $nextYear = date('Y', strtotime($nextStart));
+
         $weekOptions = [
-            $currentWeek => 'Semana '.$currentWeek.' ('.date('d/m', strtotime($currentStart)).' - '.date('d/m', strtotime($currentEnd)).')',
-            $nextWeek => 'Semana '.$nextWeek.' ('.date('d/m', strtotime($nextStart)).' - '.date('d/m', strtotime($nextEnd)).')',
+            $currentWeek => 'Semana '.$currentWeek.' ('.$currentYear.') — '.date('d/m', strtotime($currentStart)).' - '.date('d/m', strtotime($currentEnd)),
+            $nextWeek => 'Semana '.$nextWeek.' ('.$nextYear.') — '.date('d/m', strtotime($nextStart)).' - '.date('d/m', strtotime($nextEnd)),
         ];
 
         $weekMap = [
@@ -108,11 +111,13 @@ class WorkSheetController extends Controller
             'department_id' => 'required|exists:departments,id',
         ]);
 
+        $weekYear = date('Y', strtotime($request->start_date));
         $departamento_semana_existe = WorkSheet::where('department_id', $request->department_id)
             ->where('week_number', $request->week_number)
+            ->whereYear('start_date', $weekYear)
             ->exists();
         if ($departamento_semana_existe) {
-            return back()->withErrors(['department_id' => 'Ya existe una sabana para este departamento en esta semana.'])->withInput();
+            return back()->withErrors(['department_id' => 'Ya existe una sábana para este departamento en esta semana y año.'])->withInput();
         }
 
         WorkSheet::create([
@@ -126,27 +131,29 @@ class WorkSheetController extends Controller
     }
 
    public function show($id)
-{
-    // Cargamos workOrders y, dentro de ellas, sus tareas, sus disciplinas y sus evidencias
-    $worksheet = WorkSheet::with([
-        'workOrders.equipment', 
-        'workOrders.installation',
-        'workOrders.tasks.discipline',
-        'workOrders.tasks.evidences',
+    {
+        // Cargamos workOrders y, dentro de ellas, sus tareas, sus disciplinas y sus evidencias
+        $worksheet = WorkSheet::with([
+            'workOrders.equipment', 
+            'workOrders.installation',
+            'workOrders.tasks.discipline',
+            'workOrders.tasks.evidences',
         ])->with('department')->findOrFail($id);
+
+        if (auth()->user()->role === 'supervisor' && $worksheet->department_id !== auth()->user()->department_id) {
+            abort(403, 'No tienes permiso para acceder a ordenes de trabajo de otros departamentos.');
+        }
 
         $extraplan = false;
 
         // DD($worksheet->start_date . ' < ' . Carbon::today('America/Caracas')->toDateString() . ' && ' . $worksheet->end_date . ' > ' . Carbon::today('America/Caracas')->toDateString());
         
-        if($worksheet->start_date <= Carbon::today('America/Caracas')->toDateString() && $worksheet->end_date >= Carbon::today('America/Caracas')->toDateString() ){
+        if ($worksheet->start_date <= Carbon::today('America/Caracas')->toDateString() && $worksheet->end_date >= Carbon::today('America/Caracas')->toDateString()) {
             $extraplan = true;
-
         }
 
-    return view('worksheets.show')->with('worksheet', $worksheet)->with('extraplan', $extraplan ?? false);
-}
-
+        return view('worksheets.show')->with('worksheet', $worksheet)->with('extraplan', $extraplan ?? false);
+    }
     public function edit($id)
     {
         // Lógica para mostrar el formulario de edición de una hoja de trabajo
@@ -173,38 +180,41 @@ class WorkSheetController extends Controller
     }
 
    public function generatePdf($id)
-{
-    $worksheet = WorkSheet::with([
-        'department',
-        'workOrders.tasks.discipline',
-        'workOrders.installation',
-        'workOrders.equipment'
-    ])->findOrFail($id);
+    {
+        $worksheet = WorkSheet::with([
+            'department',
+            'workOrders.tasks.discipline',
+            'workOrders.installation',
+            'workOrders.equipment'
+        ])->findOrFail($id);
 
-    // Agrupamos las órdenes de trabajo por fecha para que la vista las itere correctamente
-    // Usamos 'created_at' o la fecha de la primera tarea como referencia
-    $worksheet->dates = $worksheet->workOrders
-        ->sortBy(function ($order) {
-            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at);
-        })
-        ->groupBy(function($order) {
-            // Si tienes una fecha específica en la orden úsala,
-            // de lo contrario usamos la fecha de su primera tarea
-            return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
-        });
+        if (auth()->user()->role === 'supervisor' && $worksheet->department_id !== auth()->user()->department_id) {
+            abort(403);
+        }
 
-    $pdf = Pdf::loadView('worksheets.pdf', compact('worksheet'));
+        // Agrupamos las órdenes de trabajo por fecha para que la vista las itere correctamente
+        // Usamos 'created_at' o la fecha de la primera tarea como referencia
+        $worksheet->dates = $worksheet->workOrders
+            ->sortBy(function ($order) {
+                return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at);
+            })
+            ->groupBy(function($order) {
+                // Si tienes una fecha específica en la orden úsala,
+                // de lo contrario usamos la fecha de su primera tarea
+                return \Carbon\Carbon::parse($order->tasks->first()->date ?? $order->created_at)->format('l, d F, Y');
+            });
 
-    // Configuramos el papel en horizontal (landscape) para que quepan todas las columnas
-    $pdf->setPaper('a4', 'portrait'); // Cambia a 'landscape' si quieres horizontal
+        $pdf = Pdf::loadView('worksheets.pdf', compact('worksheet'));
 
-     $departmentName = str_replace(' ', '-', $worksheet->department->name);
-     $timestamp = now()->format('d-m-Y-H');
-     $fileName = 'Sabana' . $worksheet->week_number . '-' . $departmentName . '-' . $timestamp . '.pdf';
+        // Configuramos el papel en horizontal (landscape) para que quepan todas las columnas
+        $pdf->setPaper('a4', 'portrait'); // Cambia a 'landscape' si quieres horizontal
 
-    return $pdf->stream('sabana_' . $worksheet->week_number . '.pdf');
-}
+        $departmentName = str_replace(' ', '-', $worksheet->department->name);
+        $timestamp = now()->format('d-m-Y-H');
+        $fileName = 'Sabana' . $worksheet->week_number . '-' . $departmentName . '-' . $timestamp . '.pdf';
 
+        return $pdf->stream('sabana_' . $worksheet->week_number . '.pdf');
+    }
 public function sendToTelegram(Request $request, $id)
 {
 
@@ -263,4 +273,23 @@ public function sendToTelegram(Request $request, $id)
 
     return back()->with('error', 'Fallo de Telegram: ' . $response->json('description'));
 }
+
+ public function supervisorWorksheets()
+    {
+        $departmentId = auth()->user()->department_id;
+
+        $worksheets = WorkSheet::with('department')
+            ->withCount('workOrders')
+            ->withCount([
+                'tasks as pending_tasks_count' => fn($query) => $query->where('status', 'PENDIENTE'),
+                'tasks as review_tasks_count' => fn($query) => $query->where('status', 'POR REVISION'),
+                'tasks as completed_tasks_count' => fn($query) => $query->where('status', 'COMPLETADO'),
+                'tasks as not_completed_tasks_count' => fn($query) => $query->where('status', 'NO COMPLETADO'),
+            ])
+            ->where('department_id', $departmentId)
+            ->orderBy('start_date', 'desc')
+            ->get();
+
+        return view('worksheets.index')->with('worksheets', $worksheets);
+    }
 }

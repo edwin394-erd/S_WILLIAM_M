@@ -5,6 +5,8 @@ use App\Models\User;
 use App\Models\Department;
 use App\Models\Discipline;
 
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 
 class UserController extends Controller
@@ -90,5 +92,21 @@ class UserController extends Controller
     public function show($id)
     {
         // Lógica para mostrar los detalles de un usuario específico
+    }
+
+    public function tablePdf(Request $request)
+    {
+        $recordsJson = $request->input('records', '[]');
+        $columnsJson = $request->input('columns', '[]');
+
+        $records = json_decode($recordsJson, true) ?: [];
+        $columns = json_decode($columnsJson, true) ?: (is_array($columnsJson) ? $columnsJson : []);
+
+        $generatedAt = now()->format('d/m/Y H:i');
+
+        $pdf = Pdf::loadView('users.pdf', compact('records', 'columns', 'generatedAt'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('usuarios.pdf');
     }
 }

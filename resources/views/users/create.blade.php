@@ -28,25 +28,29 @@
             />
             <br>
             <div class="flex">
-                <div class="w-1/2 p-1">
-                    <x-select 
-                                name="department_id" 
-                                label="Departamento" 
-                                :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
-                                placeholder="Seleccione un departamento"
-                                required
-                            />
-
-                </div>
-                 <div class="w-1/2 p-1">
-                 <x-select 
-                    name="discipline_id" 
-                    label="Disciplina" 
-                    :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
-                    placeholder="Seleccione una disciplina"
-                    buscable="true"
-                />
-                 </div>
+         <div class="w-1/2 p-1">
+    <!-- Añadimos un id al contenedor o directamente al componente para identificarlo -->
+    <x-select 
+        id="select-department"
+        name="department_id" 
+        label="Departamento" 
+        :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
+        placeholder="Seleccione"
+        required
+        :nullable="true"
+    />
+</div>
+<div class="w-1/2 p-1">
+    <x-select 
+        id="select-discipline"
+        name="discipline_id" 
+        label="Disciplina" 
+        :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
+        placeholder="Seleccione"
+        buscable="true"
+        :nullable="true"
+    />
+</div>
                 
                 
                             
@@ -73,31 +77,35 @@
 
 
 @section("scripts")
-
-
-<!-- Tu HTML anterior se mantiene igual -->
-
 <script>
     // Convertimos la colección de PHP a un objeto JSON de JS
     const departments = @json($departments_with_disciplines);
 
-    document.getElementById('department_id').addEventListener('change', function() {
-        const departmentId = this.value;
-        const disciplineSelect = document.getElementById('discipline_id');
+    document.getElementById('select-department').addEventListener('change', function(e) {
+        const departmentId = e.detail; 
+        const disciplineSelect = document.getElementById('select-discipline');
         
-        // Limpiar opciones actuales (dejando solo el placeholder)
-        disciplineSelect.innerHTML = '<option value="" disabled selected>Seleccione una disciplina</option>';
+        if (!disciplineSelect) return;
 
-        // Buscar el departamento seleccionado en nuestro objeto JSON
+        // Buscamos el departamento seleccionado
         const selectedDept = departments.find(d => d.id == departmentId);
-
+        
+        // Construimos un objeto puro { id: name } idéntico a cómo lo genera Laravel .toArray()
+        const newOptions = {};
         if (selectedDept && selectedDept.disciplines) {
-            selectedDept.disciplines.forEach(discipline => {
-                const option = document.createElement('option');
-                option.value = discipline.id;
-                option.text = discipline.name;
-                disciplineSelect.appendChild(option);
+            selectedDept.disciplines.forEach(d => {
+                newOptions[d.id] = d.name;
             });
+        }
+
+        // Obtenemos el proxy reactivo de Alpine (funciona en v3 y v2 como fallback)
+        const alpineData = window.Alpine ? Alpine.$data(disciplineSelect) : disciplineSelect.__x$data;
+
+        if (alpineData) {
+            // Actualizamos el estado interno de forma reactiva
+            alpineData.options = newOptions;
+            alpineData.selected = null;
+            alpineData.search = '';
         }
     });
 </script>

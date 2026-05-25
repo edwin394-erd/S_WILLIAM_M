@@ -40,7 +40,7 @@
                             <label for="remember" class="text-gray-500 dark:text-gray-300">Recuérdame</label>
                         </div>
                     </div>
-                    <a href="#" class="text-sm font-medium text-slate-600 hover:underline dark:text-slate-500">¿Olvidaste tu contraseña?</a>
+                    {{-- <a href="#" class="text-sm font-medium text-slate-600 hover:underline dark:text-slate-500">¿Olvidaste tu contraseña?</a> --}}
                 </div>
 
                 <button type="submit" 

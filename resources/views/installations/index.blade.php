@@ -20,6 +20,7 @@
         :editar="true" 
         :agregar="true"
         :routePrefix="'admin.installations'"
+        :pdfRoute="'admin.installations.pdf'"
     />
 </div>
 

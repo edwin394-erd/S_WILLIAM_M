@@ -18,6 +18,10 @@ use App\Http\Controllers\DisciplineController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\InstallationController;
+use App\Http\Controllers\StatsController;
+use App\Models\WorkOrder;
+use App\Models\OrderTask;
+use App\Models\Department;
 
 
 Route::get('/', function () {
@@ -60,28 +64,38 @@ Route::middleware(['auth', CheckPlanAdmin::class])->group(function () {
     Route::post('worksheets/{worksheet}/send-telegram', [WorkSheetController::class, 'sendToTelegram'])->name('admin.worksheets.send-telegram');
     Route::get('workorders/schedule-info', [WorkOrderController::class, 'scheduleInfo'])->name('admin.workorders.schedule-info');
     Route::get('workorders/historial', [WorkOrderController::class, 'historial'])->name('admin.workorders.historial');
+    Route::get('workorders/historial/pdf', [WorkOrderController::class, 'historialPdf'])->name('admin.workorders.historial.pdf');
     Route::resource('workorders', WorkOrderController::class)->names('admin.workorders');    
 });
 
-Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(function () {
-    Route::get('/stats', function () {
-         $saludo = "HOLA SUPERVISOR";
-        return view('stats')->with('saludo', $saludo);
-    })->name('supervisor.stats');
 
+Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(function () {
+    Route::get('/stats', [StatsController::class, 'supervisorStats'])->name('supervisor.stats');
+    Route::get('/worksheets', [WorkSheetController::class, 'supervisorWorksheets'])->name('supervisor.worksheets');
+    Route::get('/worksheets/{worksheet}', [WorkSheetController::class, 'show'])->name('supervisor.worksheets.show');
+    Route::get('/worksheets/{worksheet}/pdf', [WorkSheetController::class, 'generatePdf'])->name('supervisor.worksheets.pdf');
+    
+    // Mover aquí (ANTES de las rutas que usan parámetros o resource)
+    Route::get('/workorders/historial', [WorkOrderController::class, 'historial'])->name('supervisor.workorders.historial');
+    Route::get('/workorders/historial/pdf', [WorkOrderController::class, 'historialPdf'])->name('supervisor.workorders.historial.pdf');
+    
+    Route::get('/workorders', [WorkOrderController::class, 'supervisorWorkOrders'])->name('supervisor.workorders.index');
+    Route::get('/workorders/{work_order}', [WorkOrderController::class, 'show'])->name('supervisor.workorders.show');
 });
 
 Route::middleware(['auth', CheckPlanAdmin::class])->prefix('admin')->group(function () {
-    Route::get('/stats', function () {
-         $saludo = "HOLA ADMIN";
-        return view('stats')->with('saludo', $saludo);
-    })->name('admin.stats');
+    Route::get('/stats', [StatsController::class, 'adminStats'])->name('admin.stats');
 
     Route::resource('departments', DepartmentController::class)->names('admin.departments');
+    Route::post('departments/table/pdf', [DepartmentController::class, 'tablePdf'])->name('admin.departments.pdf');
+    Route::post('users/table/pdf', [UserController::class, 'tablePdf'])->name('admin.users.pdf');
     Route::resource('users', UserController::class)->names('admin.users');
     Route::resource('equipment', EquipmentController::class)->names('admin.equipment');
+    Route::post('equipment/table/pdf', [EquipmentController::class, 'tablePdf'])->name('admin.equipment.pdf');
     Route::resource('installations', InstallationController::class)->names('admin.installations');
+    Route::post('installations/table/pdf', [InstallationController::class, 'tablePdf'])->name('admin.installations.pdf');
     Route::resource('disciplines', DisciplineController::class)->names('admin.disciplines');
+    Route::post('disciplines/table/pdf', [DisciplineController::class, 'tablePdf'])->name('admin.disciplines.pdf');
     
 
 });

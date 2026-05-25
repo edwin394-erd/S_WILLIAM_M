@@ -21,19 +21,22 @@
         'not_completed_tasks_count' => 'No completadas',
         'enviado' => 'ESTATUS',
     ];
+
+    $routePrefix = auth()->user()->role === 'supervisor' ? 'supervisor.worksheets' : 'admin.worksheets';
+    $allowPdf = auth()->user()->role !== 'tecnico';
+    $enviarTelegram = auth()->user()->role === 'admin' || auth()->user()->role === 'planificador';
+    $canAdd = auth()->user()->role !== 'supervisor';
 @endphp
     
     <x-gridcards
-        :records="$worksheets" 
-        :columns="$columnas" 
-        :departmentOptions="$departmentOptions"
-        :eliminar="true" 
-        {{-- :editar="true"  --}}
-        :ver="true" 
-        :agregar="true"
-        :descargar_pdf="true"
-        :routePrefix="'admin.worksheets'"
-        :enviar_telegram="true"
+        :records="$worksheets"
+        :columns="$columnas"
+        :eliminar="auth()->user()->role === 'admin' || auth()->user()->role === 'planificador'"
+        :agregar="$canAdd"
+        :ver="true"
+        :descargar_pdf="$allowPdf"
+        :enviar_telegram="$enviarTelegram"
+        :routePrefix="$routePrefix"
     />
 </div>
 @endsection

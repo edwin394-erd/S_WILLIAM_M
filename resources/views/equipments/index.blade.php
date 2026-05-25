@@ -19,6 +19,7 @@
         {{-- :ver="true"  --}}
         :agregar="true"
         :routePrefix="'admin.equipment'"
+        :pdfRoute="'admin.equipment.pdf'"
     />
 </div>
 

@@ -32,15 +32,16 @@
     }
 
     $weekOptions = collect($records)
-        ->groupBy('week_number')
-        ->sortByDesc(fn($group, $week) => (int) $week)
-        ->map(function ($group, $week) {
+        ->groupBy(fn($record) => data_get($record, 'week_key') ?? data_get($record, 'week_number'))
+        ->sortByDesc(fn($group, $weekKey) => data_get($group->first(), 'start_date'))
+        ->map(function ($group, $weekKey) {
             $record = $group->first();
+            $weekLabel = data_get($record, 'week_label') ?? ('Semana ' . data_get($record, 'week_number'));
             $start = isset($record->start_date) ? \Carbon\Carbon::parse($record->start_date)->format('d/m') : '';
             $end = isset($record->end_date) ? \Carbon\Carbon::parse($record->end_date)->format('d/m') : '';
             return [
-                'value' => (string) $week,
-                'label' => 'Semana ' . $week . ' (' . $start . ' - ' . $end . ')',
+                'value' => (string) $weekKey,
+                'label' => $weekLabel . ' (' . $start . ' - ' . $end . ')',
             ];
         })
         ->values()
@@ -70,7 +71,7 @@
                 const matchesDepartment = this.departmentFilter === '' || String(r.department?.name || '').toLowerCase() === this.departmentFilter.toLowerCase();
                 if (!matchesDepartment) return false;
 
-                const matchesWeek = this.weekFilter === '' || String(r.week_number) === this.weekFilter;
+                const matchesWeek = this.weekFilter === '' || String(r.week_key ?? r.week_number) === this.weekFilter;
                 if (!matchesWeek) return false;
 
                 if (this.search === '') return true;
@@ -182,7 +183,7 @@
                 <div class="px-5 py-2 bg-slate-50 border-b border-gray-100 rounded-t-xl flex justify-between items-center">
                     <div>
                         <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Semana</span>
-                        <span class="text-lg font-bold text-slate-800" x-text="'N° ' + (record.week_number ?? 'N/A')"></span>
+                        <span class="text-lg font-bold text-slate-800" x-text="record.week_label ?? ('N° ' + (record.week_number ?? 'N/A'))"></span>
                     </div>
                     <div class="text-right">
                         <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Departamento</span>

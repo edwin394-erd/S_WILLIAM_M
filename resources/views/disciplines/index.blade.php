@@ -26,6 +26,7 @@
         :ver="false" 
         :agregar="true"
         :routePrefix="'admin.disciplines'"
+        :pdfRoute="'admin.disciplines.pdf'"
     />
 
 @endsection

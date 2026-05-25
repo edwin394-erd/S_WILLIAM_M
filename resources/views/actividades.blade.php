@@ -13,7 +13,7 @@
     :records="$workOrders"
     :reportar="true"
     :disciplineId="$disciplina->id"
-    :create="false"
+    :crear="false"
 
     {{-- :worksheetId="$worksheet->id" --}}
     {{-- :editar="true"

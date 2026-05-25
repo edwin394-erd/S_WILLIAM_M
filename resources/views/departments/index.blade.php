@@ -23,6 +23,7 @@
         :ver="true" 
         :agregar="true"
         :routePrefix="'admin.departments'"
+        :pdfRoute="'admin.departments.pdf'"
     />
 </div>
 

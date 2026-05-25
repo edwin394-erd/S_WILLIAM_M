@@ -23,6 +23,7 @@
         :ver="false" 
         :agregar="true"
         :routePrefix="'admin.users'"
+        :pdfRoute="'admin.users.pdf'"
     />
 </div>
 @endsection

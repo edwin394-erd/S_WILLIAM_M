@@ -24,21 +24,25 @@
         <div class="flex gap-2">
             <div class="w-1/2">
                 <x-select 
+                    id="select-department"
                     name="department_id" 
                     label="Departamento" 
                     :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
                     selected="{{ $user->department_id }}"
-                    placeholder="Seleccione un departamento"
+                    placeholder="Seleccione"
+                    :nullable="true"
                 />
             </div>
             <div class="w-1/2">
                 <x-select 
+                    id="select-discipline"
                     name="discipline_id" 
                     label="Disciplina" 
                     :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
                     selected="{{ $user->discipline_id }}"
-                    placeholder="Seleccione una disciplina"
+                    placeholder="Seleccione"
                     buscable="true"
+                    :nullable="true"
                 />
             </div>
         </div>
@@ -47,4 +51,32 @@
         <x-confirm-cancel backUrl="{{ route('admin.users.index') }}" />
     </form>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+    const departments = @json($departments_with_disciplines);
+
+    document.getElementById('select-department').addEventListener('change', function(e) {
+        const departmentId = e.detail;
+        const disciplineSelect = document.getElementById('select-discipline');
+        if (!disciplineSelect) return;
+
+        const selectedDept = departments.find(d => d.id == departmentId);
+        const newOptions = {};
+
+        if (selectedDept && selectedDept.disciplines) {
+            selectedDept.disciplines.forEach(d => {
+                newOptions[d.id] = d.name;
+            });
+        }
+
+        const alpineData = window.Alpine ? Alpine.$data(disciplineSelect) : disciplineSelect.__x$data;
+        if (alpineData) {
+            alpineData.options = newOptions;
+            alpineData.selected = null;
+            alpineData.search = '';
+        }
+    });
+</script>
 @endsection

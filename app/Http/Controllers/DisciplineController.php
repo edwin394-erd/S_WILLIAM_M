@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Discipline;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class DisciplineController extends Controller
 {
@@ -40,5 +41,22 @@ class DisciplineController extends Controller
     {
         Discipline::destroy($id);
         return redirect()->route('admin.disciplines.index')->with('success', 'Disciplina eliminada exitosamente.');
+    }
+
+    public function tablePdf(Request $request)
+    {
+        $recordsJson = $request->input('records', '[]');
+        $columnsJson = $request->input('columns', '[]');
+
+        $records = json_decode($recordsJson, true) ?: [];
+        $columns = json_decode($columnsJson, true) ?: (is_array($columnsJson) ? $columnsJson : []);
+
+        $generatedAt = now()->format('d/m/Y H:i');
+        $title = 'LISTADO DE DISCIPLINAS';
+
+        $pdf = Pdf::loadView('exports.table-pdf', compact('records', 'columns', 'generatedAt', 'title'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('disciplinas.pdf');
     }
 }

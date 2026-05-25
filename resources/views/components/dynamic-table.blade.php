@@ -7,7 +7,11 @@
     'buscable' => true, 
     'agregar' => false,
     'routePrefix' => null, 
-    'createParams' => []
+    'createParams' => [],
+    'pdfRoute' => null,      // nombre de ruta para generar PDF (opcional)
+    'pdfParams' => [],       // parámetros fijos para la ruta (opcional)
+    'pdfMethod' => 'post',   // 'post' o 'get'
+    'pdfLabel' => 'Generar PDF'
 ])
 
 @php
@@ -16,6 +20,7 @@
     $showUrl = ($ver && $routePrefix) ? route($routePrefix . '.show', $dummyId) : '';
     $editUrl = ($editar && $routePrefix) ? route($routePrefix . '.edit', $dummyId) : '';
     $deleteUrl = ($eliminar && $routePrefix) ? route($routePrefix . '.destroy', $dummyId) : '';
+    $pdfUrl = $pdfRoute ? route($pdfRoute, $pdfParams) : '';
 @endphp
 
 <div class="space-y-4" 
@@ -28,12 +33,34 @@ x-cloak
         showUrlTemplate: '{{ $showUrl }}',
         editUrlTemplate: '{{ $editUrl }}',
         deleteUrlTemplate: '{{ $deleteUrl }}',
+        pdfUrlTemplate: '{{ $pdfUrl }}',
         
+        extractValues(obj) {
+            let vals = [];
+            if (obj === null || obj === undefined) return vals;
+            if (typeof obj !== 'object') return [String(obj)];
+            for (const key in obj) {
+                try {
+                    const v = obj[key];
+                    if (v === null || v === undefined) continue;
+                    if (typeof v === 'object') {
+                        vals = vals.concat(this.extractValues(v));
+                    } else {
+                        vals.push(String(v));
+                    }
+                } catch (e) {
+                    // ignorar propiedades inaccesibles
+                }
+            }
+            return vals;
+        },
         get filteredRecords() {
             if (this.search === '') return this.records;
-            return this.records.filter(r => 
-                Object.values(r).some(v => String(v).toLowerCase().includes(this.search.toLowerCase()))
-            );
+            const q = this.search.toLowerCase();
+            return this.records.filter(r => {
+                const values = this.extractValues(r);
+                return values.some(v => v.toLowerCase().includes(q));
+            });
         },
         get pagedRecords() {
             let start = (this.page - 1) * this.perPage;
@@ -46,6 +73,13 @@ x-cloak
         getShowUrl(id) { return this.showUrlTemplate.replace('{{ $dummyId }}', id); },
         getEditUrl(id) { return this.editUrlTemplate.replace('{{ $dummyId }}', id); },
         getDeleteUrl(id) { return this.deleteUrlTemplate.replace('{{ $dummyId }}', id); },
+        getPdfUrl() {
+            if (!this.pdfUrlTemplate) return '#';
+            let url = this.pdfUrlTemplate;
+            const sep = url.includes('?') ? '&' : '?';
+            const q = this.search ? 'search=' + encodeURIComponent(this.search) : '';
+            return url + (q ? sep + q : '');
+        },
         formatValue(value) {
             if (typeof value !== 'string') return value;
             const isoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
@@ -92,6 +126,24 @@ x-cloak
                     <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Agregar Nuevo 
                 </a>
+            @endif
+            @if($pdfRoute)
+                @if(($pdfMethod ?? 'post') === 'post')
+                    <form method="POST" action="{{ $pdfUrl }}" target="_blank" x-ref="pdfForm" class="inline">
+                        @csrf
+                        <input type="hidden" name="records" x-ref="pdfRecords">
+                        <input type="hidden" name="columns" value='{{ json_encode($columns) }}'>
+                        <button type="button" @click.prevent="$refs.pdfRecords.value = JSON.stringify(filteredRecords); $refs.pdfForm.submit();" class="inline-flex items-center text-slate-600 bg-slate-100 hover:bg-slate-200  font-medium rounded-lg text-sm px-4 py-2 gap gap-2">
+                            <x-svg-pdf class="w-4 h-4 me-3"/>
+                             {{ $pdfLabel }}
+                        </button>
+                    </form>
+                @else
+                    <a :href="getPdfUrl()" target="_blank" class="inline-flex items-center text-white bg-slate-700 hover:bg-slate-800 focus:ring-4 focus:outline-none focus:ring-slate-300 font-medium rounded-lg text-sm px-4 py-2">
+                        <svg class="w-4 h-4 me-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7z"/></svg>
+                        {{ $pdfLabel }}
+                    </a>
+                @endif
             @endif
         </div>
     </div>

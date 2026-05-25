@@ -40,11 +40,11 @@
 
             <div class="space-y-3">
                 <p class="text-sm font-semibold text-gray-700">Evidencias</p>
-                <div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4">
+                <div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 ">
                     <input type="hidden" id="order_task_id" name="order_task_id" value="{{ optional($workOrder->tasks->first())->id }}">
-                    <div id="my-dropzone" class="dropzone bg-white p-6 rounded text-center">
-                        <div class="dz-message flex flex-col justify-center items-center py-2">
-                            <x-svg-upload :pxls="40" class="mx-auto mb-3 text-pdvsa-red"/>
+                    <div id="my-dropzone" class="dropzone bg-white p-1 rounded text-center min-h-[180px]">
+                        <div class="dz-message flex flex-col justify-center items-center h-full py-4">
+                            <x-svg-upload :pxls="40" class="mx-auto text-pdvsa-red"/>
                             <p class="text-sm font-semibold text-gray-700">Arrastra tus archivos o haz clic en el cuadro</p>
                             <p class="text-xs text-gray-500">Selecciona archivos PDF, JPG o PNG. Puedes adjuntar varios archivos.</p>
                         </div>
@@ -52,9 +52,20 @@
                 </div>
             </div>
 
+            {{-- <style>
+                #my-dropzone .dz-preview .dz-image {
+                    width: 50px !important;
+                    height: 50px !important;
+                }
+
+                #my-dropzone .dz-preview.dz-file-preview {
+                    margin: 0.5rem !important;
+                }
+            </style> --}}
+
             <div class="flex justify-end gap-3">
                 <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="rounded bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">Cancelar</a>
-                <button id="submit-button" type="submit" class="rounded bg-slate-500 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Enviar evidencias</button>
+                <button id="submit-button" type="submit" class="rounded bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-500">Enviar evidencias</button>
             </div>
         </form>
     </div>
@@ -66,7 +77,7 @@
 <script type="module">
     Dropzone.autoDiscover = false;
 
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener('DOMContentLoaded', function () {
         if (typeof Dropzone === 'undefined') {
             console.error('Dropzone no está definido. Verifica que el bundle de Vite cargue correctamente.');
             return;
@@ -77,65 +88,61 @@
         const taskId = document.getElementById('order_task_id').value;
         const uploadUrl = myForm.action;
 
-        const myDropzone = new Dropzone("#my-dropzone", {
+        const myDropzone = new Dropzone('#my-dropzone', {
             url: uploadUrl,
-            autoProcessQueue: false,
+            autoProcessQueue: true,
             uploadMultiple: false,
-            parallelUploads: 1,
-            paramName: "file",
+            parallelUploads: 2,
+            maxFiles: 5,
+            paramName: 'file',
             maxFilesize: 10,
-            acceptedFiles: ".jpeg,.jpg,.png,.pdf",
+            acceptedFiles: '.jpeg,.jpg,.png,.pdf',
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             },
-            dictRemoveFile: "Quitar",
+            dictDefaultMessage: 'Arrastra tus archivos o haz clic en el cuadro',
+            dictRemoveFile: 'Quitar',
+            dictMaxFilesExceeded: 'Has alcanzado el número máximo de archivos permitidos.',
             addRemoveLinks: true,
-            init: function() {
+            init: function () {
                 const dz = this;
-                let submitAfterQueue = false;
                 let uploadError = false;
 
-                myForm.addEventListener('submit', function(e) {
-                    if (dz.getQueuedFiles().length > 0) {
+                myForm.addEventListener('submit', function (e) {
+                    if (dz.getUploadingFiles().length > 0 || dz.getQueuedFiles().length > 0) {
                         e.preventDefault();
-                        submitAfterQueue = true;
-                        uploadError = false;
-                        submitButton.disabled = true;
-                        submitButton.innerText = 'Subiendo evidencias...';
-                        submitButton.classList.add('opacity-50', 'cursor-not-allowed');
-                        dz.processQueue();
+                        alert('Espera a que se terminen de subir las evidencias antes de enviar el formulario.');
+                        return;
                     }
                 });
 
-                dz.on('sending', function(file, xhr, formData) {
+                dz.on('sending', function (file, xhr, formData) {
                     formData.append('order_task_id', taskId);
                     formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+                    submitButton.disabled = true;
+                    submitButton.innerText = 'Subiendo evidencias...';
+                    submitButton.classList.add('opacity-50', 'cursor-not-allowed');
                 });
 
-                dz.on('success', function(file, response) {
+                dz.on('success', function (file, response) {
                     console.log('Subido con éxito:', response);
                 });
 
-                dz.on('error', function(file, errorMessage, xhr) {
+                dz.on('error', function (file, errorMessage, xhr) {
                     uploadError = true;
                     console.error('Error en subida:', errorMessage, xhr);
                     alert('No se pudo subir el archivo: ' + (errorMessage.message || errorMessage));
                 });
 
-                dz.on('queuecomplete', function() {
-                    if (!submitAfterQueue) {
-                        return;
-                    }
+                dz.on('queuecomplete', function () {
+                    submitButton.disabled = false;
+                    submitButton.innerText = 'Enviar evidencias';
+                    submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
 
                     if (uploadError) {
-                        submitButton.disabled = false;
-                        submitButton.innerText = 'Enviar evidencias';
-                        submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                        submitAfterQueue = false;
-                        return;
+                        uploadError = false;
+                        alert('Ocurrió un error en alguna de las subidas. Revisa los archivos e intenta nuevamente.');
                     }
-
-                    myForm.submit();
                 });
             }
         });

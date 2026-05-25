@@ -19,3 +19,13 @@
 :root {
     color-scheme: light !important;
 }
+
+#my-dropzone.dropzone {
+  border: none !important;
+  min-height: 160px !important;
+  padding: 12px !important;
+}
+
+#my-dropzone.dropzone .dz-message {
+  margin: 0 !important;
+}

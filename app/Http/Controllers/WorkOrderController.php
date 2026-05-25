@@ -343,7 +343,7 @@ public function reportar(Request $request, $id)
     {
         if ($request->hasFile('file')) {
             $request->validate([
-                'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+                'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:20240',
                 'order_task_id' => 'required|integer|exists:order_tasks,id',
             ]);
 
@@ -372,6 +372,8 @@ public function reportar(Request $request, $id)
             'observacion' => 'required|string',
             'order_task_id' => 'required|integer|exists:order_tasks,id',
         ]);
+
+
 
         $task = OrderTask::findOrFail($request->order_task_id);
 
@@ -491,14 +493,113 @@ public function reportar(Request $request, $id)
             ->with('worksheetId', optional($worksheet)->id);
     }
 
-    public function historial()
+    public function historial(Request $request)
     {
-        $workOrders = WorkOrder::with(['tasks', 'installation', 'equipment', 'workSheet', 'tasks.discipline', 'tasks.evidences'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $status = $request->query('status');
+
+        $query = WorkOrder::with([
+                'tasks' => function ($taskQuery) {
+                    $taskQuery->orderBy('date', 'asc')->orderBy('time_start', 'asc');
+                },
+                'installation',
+                'equipment',
+                'workSheet',
+                'tasks.discipline',
+                'tasks.evidences',
+            ])
+            ->orderByRaw('(select max(date) from order_tasks where order_tasks.work_order_id = work_orders.id) desc');
+
+        // If the current user is a supervisor, restrict to orders in their worksheet department
+        if (auth()->user() && auth()->user()->role === 'supervisor') {
+            $deptId = auth()->user()->department_id;
+            if ($deptId) {
+                $query->whereHas('workSheet', function ($q) use ($deptId) {
+                    $q->where('department_id', $deptId);
+                });
+            }
+        }
+
+        if ($status) {
+            $query->whereHas('tasks', function ($taskQuery) use ($status) {
+                $taskQuery->where('order_tasks.status', $status);
+            });
+        }
+
+        $workOrders = $query->get();
+
+        $departmentID = auth()->user()->department_id ?? null;
+        $dapartmentName = $departmentID ? DB::table('departments')->where('id', $departmentID)->value('name') : 'N/A';
 
         return view('workorders.historial')
-            ->with('workOrders', $workOrders);
+            ->with('workOrders', $workOrders)
+            ->with('departmentName', $dapartmentName);
+    }
+
+    public function historialPdf(Request $request)
+    {
+        $status = $request->query('status');
+        $dateFrom = $request->query('dateFrom');
+        $dateTo = $request->query('dateTo');
+        $search = $request->query('search');
+
+        $query = WorkOrder::with([
+                'tasks' => function ($taskQuery) {
+                    $taskQuery->orderBy('date', 'asc')->orderBy('time_start', 'asc');
+                },
+                'installation',
+                'equipment',
+                'workSheet',
+                'tasks.discipline',
+                'tasks.evidences',
+            ])
+            ->orderByRaw('(select max(date) from order_tasks where order_tasks.work_order_id = work_orders.id) desc');
+
+        if (auth()->user() && auth()->user()->role === 'supervisor') {
+            $deptId = auth()->user()->department_id;
+            if ($deptId) {
+                $query->whereHas('workSheet', function ($q) use ($deptId) {
+                    $q->where('department_id', $deptId);
+                });
+            }
+        }
+
+        if ($status && $status !== 'ALL') {
+            $query->whereHas('tasks', function ($taskQuery) use ($status) {
+                $taskQuery->where('order_tasks.status', $status);
+            });
+        }
+
+        if ($dateFrom || $dateTo) {
+            $query->whereHas('tasks', function ($taskQuery) use ($dateFrom, $dateTo) {
+                if ($dateFrom) {
+                    $taskQuery->whereDate('date', '>=', $dateFrom);
+                }
+                if ($dateTo) {
+                    $taskQuery->whereDate('date', '<=', $dateTo);
+                }
+            });
+        }
+
+        if ($search) {
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery->where('odm_number', 'like', "%{$search}%")
+                    ->orWhere('accion_requerida', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%")
+                    ->orWhereHas('installation', function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('equipment', function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $workOrders = $query->get();
+
+        $pdf = Pdf::loadView('workorders.pdf', compact('workOrders'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('historial.pdf');
     }
 
     public function show($id)

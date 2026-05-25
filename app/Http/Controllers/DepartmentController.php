@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Department;
 use App\Models\Discipline;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 class DepartmentController extends Controller
 {
     public function index()
@@ -71,5 +72,22 @@ class DepartmentController extends Controller
     {
         Department::destroy($id);
         return redirect()->route('admin.departments.index')->with('success', 'Departamento eliminado exitosamente.');
+    }
+
+    public function tablePdf(Request $request)
+    {
+        $recordsJson = $request->input('records', '[]');
+        $columnsJson = $request->input('columns', '[]');
+
+        $records = json_decode($recordsJson, true) ?: [];
+        $columns = json_decode($columnsJson, true) ?: (is_array($columnsJson) ? $columnsJson : []);
+
+        $generatedAt = now()->format('d/m/Y H:i');
+        $title = 'LISTADO DE DEPARTAMENTOS';
+
+        $pdf = Pdf::loadView('exports.table-pdf', compact('records', 'columns', 'generatedAt', 'title'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('departamentos.pdf');
     }
 }

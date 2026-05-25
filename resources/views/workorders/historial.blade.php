@@ -1,6 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Historial de Asignaciones')
+@if(auth()->user()->role === 'admin' || auth()->user()->role === 'planificador')
+    @section('title', 'Historial de Asignaciones')
+@else
+    @section('title', 'Historial de Asignaciones - '.($departmentName ?? ''))
+    
+@endif
+
 
 @section('content')
 
@@ -9,6 +15,7 @@
     :reportar="true"
     :crear="false"
     :filtroFechas="true"
+    :pdf="true"
 />
 
   

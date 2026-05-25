@@ -7,6 +7,7 @@
     'ver' => false,
     'crear' => true,
     'reportar' => false,
+    'pdf' => false,
     'disciplineId' => null,
     'extraplan' => false,
     'filtroFechas' => false,
@@ -52,12 +53,22 @@
         statusFilter: 'ALL',
         dateFrom: '',
         dateTo: '',
+        getPdfUrl() {
+            const params = new URLSearchParams();
+            if (this.statusFilter && this.statusFilter !== 'ALL') params.set('status', this.statusFilter);
+            if (this.dateFrom) params.set('dateFrom', this.dateFrom);
+            if (this.dateTo) params.set('dateTo', this.dateTo);
+            if (this.search) params.set('search', this.search);
+            const base = this.authRole === 'supervisor' ? '{{ route("supervisor.workorders.historial.pdf") }}' : '{{ route("admin.workorders.historial.pdf") }}';
+            return base + (params.toString() ? ('?' + params.toString()) : '');
+        },
         
         get filteredRecords() {
             return this.records.filter(r => {
                 const matchesSearch = this.search === '' ||
                     r.odm_number.toLowerCase().includes(this.search.toLowerCase()) ||
                     r.accion_requerida.toLowerCase().includes(this.search.toLowerCase()) ||
+                    r.type?.toLowerCase().includes(this.search.toLowerCase()) ||
                     (r.installation && r.installation.name.toLowerCase().includes(this.search.toLowerCase()));
 
                 const status = r.tasks?.[0]?.status ?? '';
@@ -127,9 +138,9 @@
                             'PENDIENTE' => 'Pendiente',
                             'POR REVISION' => 'Por revisión',
                             'COMPLETADO' => 'Completado',
-                            'NO_COMPLETADO' => 'No completado',
+                            'NO COMPLETADO' => 'No completado',
                         ]"
-                        selected="ALL"
+                        selected="{{ request()->query('status', 'ALL') }}"
                         placeholder="Filtrar estado"
                         class="w-full"
                         @change="statusFilter = $event.detail; page = 1"
@@ -167,6 +178,11 @@
                     @endif
                 </div>
             @endif
+            @if($pdf)
+                <div class="ml-2">
+                    <a :href="getPdfUrl()" target="_blank" class="w-full cursor-pointer inline-flex items-center justify-center text-xs px-3 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 border border-gray-200">PDF</a>
+                </div>
+            @endif
            
         </div>
     </div>
@@ -196,7 +212,7 @@
     </div>
 
     {{-- Contenedor de Órdenes --}}
-   <div class="@if(auth()->user()->role ==="tecnico") max-h-[30vh] md:max-h-[50vh]  @else  max-h-[40vh] md:max-h-[60vh] @endif overflow-y-auto space-y-4">
+   <div class="@if(auth()->user()->role ==="tecnico") max-h-[30vh] md:max-h-[50vh]  @else  max-h-[40vh] md:max-h-[55vh] @endif overflow-y-auto space-y-4">
         <template x-for="order in pagedRecords" :key="order.id">
             <div class="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-300 text-xs">
                 
@@ -373,6 +389,8 @@
                                 <template x-for="(image, index) in reportTask.evidences?.length ? reportTask.evidences : reportTask.images" :key="index">
                                     <div class="rounded overflow-hidden border border-gray-200 bg-slate-50 p-1">
                                         <img :src="image.url || image.path || image" :alt="'Evidencia ' + (index + 1)" class="w-full h-32 object-cover" />
+                                        {{-- <img :src="image.url || image.path || image" :alt="'Evidencia ' + (index + 1)" class="w-full h-32 object-cover cursor-zoom-in transition-transform duration-200 hover:scale-110" @click="window.open(image.url || image.path || image, '_blank')" /> --}}
+
                                     </div>
                                 </template>
                             </div>
