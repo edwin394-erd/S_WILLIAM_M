@@ -66,7 +66,7 @@
         {{-- Columna 1: La gráfica mantiene su tamaño controlado de forma natural --}}
         <div class="w-full h-full">
             <x-leads-chart
-                value="{{ $completedCount }}"
+                value="{{ $completedOrders }}"
                 percentage="{{ $completedPercentage }}"
                 label="Órdenes completadas"
                 money-spent="{{ auth()->user()->role === 'supervisor' ? 'Departamento: '.$departmentName : 'Departamentos: '.$departmentCount }}"
