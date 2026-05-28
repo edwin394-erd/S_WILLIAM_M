@@ -10,11 +10,13 @@
 
 @section('content')
 
+
  <x-work-orders-table 
     :records="$workOrders"
     :reportar="true"
     :crear="false"
     :filtroFechas="true"
+    :weekOptions="$weekOptions"
     :pdf="true"
 />
 

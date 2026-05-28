@@ -20,7 +20,17 @@ class InstallationController extends Controller
 
     public function store(Request $request)
     {
-        // Lógica para almacenar una nueva instalación
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'impact' => 'required|integer|min:0',
+        ]);
+
+        \App\Models\Installation::create([
+            'name' => $request->name,
+            'impact' => $request->impact,
+        ]);
+
+        return redirect()->route('admin.installations.index')->with('success', 'Instalación creada correctamente.');
     }
 
     public function show($id)
@@ -48,6 +58,12 @@ class InstallationController extends Controller
         ]);
 
         return redirect()->route('admin.installations.index')->with('success', 'Instalación actualizada correctamente.');
+    }
+
+    public function destroy($id)
+    {
+        \App\Models\Installation::destroy($id);
+        return redirect()->route('admin.installations.index')->with('success', 'Instalación eliminada exitosamente.');
     }
 
     public function tablePdf(Request $request)

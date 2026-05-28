@@ -121,7 +121,7 @@
                 <x-alert type="error" :message="session('error')" class="mb-4" />
             @endif
 
-            <div class="mb-6 border-b border-gray-300 pb-2">
+            <div class="mb-3 border-b border-gray-300 pb-1">
                 <h2 class="text-pdvsa-red font-bold uppercase text-xs md:text-sm tracking-tight italic">
                     @yield('title', 'Gestión de Sistemas')
                 </h2>

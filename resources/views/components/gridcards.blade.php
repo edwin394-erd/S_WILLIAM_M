@@ -46,6 +46,14 @@
         })
         ->values()
         ->all();
+    $today = new \DateTime('now', new \DateTimeZone('America/Caracas'));
+    $weekday = (int) $today->format('N');
+    if ($weekday >= 4) {
+        $currentStart = (new \DateTime('thursday this week', new \DateTimeZone('America/Caracas')))->format('Y-m-d');
+    } else {
+        $currentStart = (new \DateTime('thursday last week', new \DateTimeZone('America/Caracas')))->format('Y-m-d');
+    }
+
     array_unshift($weekOptions, ['value' => '', 'label' => 'Todas las semanas']);
 @endphp
 
@@ -60,6 +68,7 @@
         records: {{ json_encode($records) }},
         departments: {{ json_encode($departmentOptions) }},
         weeks: {{ json_encode($weekOptions) }},
+        currentStart: '{{ $currentStart }}',
         showUrlTemplate: '{{ $showUrl }}',
         editUrlTemplate: '{{ $editUrl }}',
         pdfUrlTemplate: '{{ $pdfUrl }}',
@@ -273,7 +282,7 @@
                         @endif
 
                         @if($eliminar && $routePrefix)
-                            <form :action="getDeleteUrl(record.id)" method="POST" @submit="if(!confirm('¿Eliminar este registro?')) $event.preventDefault()">
+                            <form :action="getDeleteUrl(record.id)" method="POST" @submit="if(!confirm('¿Eliminar este registro?')) $event.preventDefault()" x-show="record.start_date && record.start_date > currentStart">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-red-600 hover:text-red-800 font-semibold transition-colors cursor-pointer hover:bg-slate-300 p-1 rounded" title="Eliminar Sabana">

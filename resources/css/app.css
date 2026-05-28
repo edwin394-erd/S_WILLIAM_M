@@ -20,6 +20,9 @@
     color-scheme: light !important;
 }
 
+html{
+    font-size: 85% !important;
+}
 #my-dropzone.dropzone {
   border: none !important;
   min-height: 160px !important;

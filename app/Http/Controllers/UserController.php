@@ -8,12 +8,13 @@ use App\Models\Discipline;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
     public function index()
     {
-        $users = User::with(['department', 'discipline'])->get();
+        $users = User::with(['department', 'discipline', 'disciplines'])->get();
         $departments_with_disciplines = Department::with('disciplines')->get();
 
         return view('users.index')->with('users', $users)
@@ -28,7 +29,7 @@ class UserController extends Controller
     }
     public function edit($id)
     {
-        $user = User::findOrFail($id);
+        $user = User::with('disciplines')->findOrFail($id);
         $departments_with_disciplines = Department::with('disciplines')->get();
         return view('users.edit')
             ->with('user', $user)
@@ -37,49 +38,107 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
-        $request->validate([
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'role' => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
             'discipline_id' => 'nullable|exists:disciplines,id',
+            'discipline_ids' => 'nullable|array',
+            'discipline_ids.*' => 'exists:disciplines,id',
             'password' => 'nullable|string|min:6',
-        ]);
+        ];
+
+        if (in_array($request->role, ['supervisor', 'tecnico'], true)) {
+            $rules['department_id'] = 'required|exists:departments,id';
+        }
+
+        if ($request->role === 'tecnico') {
+            $rules['discipline_id'] = [
+                'required',
+                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+            ];
+        }
+
+        if ($request->role === 'supervisor') {
+            $rules['discipline_ids'] = 'required|array|min:1';
+            $rules['discipline_ids.*'] = [
+                'required',
+                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+            ];
+        }
+
+        $request->validate($rules);
+
+        $disciplineIds = $request->input('discipline_ids', []);
+        if ($request->filled('discipline_id') && empty($disciplineIds)) {
+            $disciplineIds = [$request->discipline_id];
+        }
 
         $user = User::findOrFail($id);
         $user->name = $request->name;
         $user->email = $request->email;
         $user->role = $request->role;
         $user->department_id = $request->department_id ?: null;
-        $user->discipline_id = $request->discipline_id ?: null;
+        $user->discipline_id = $disciplineIds[0] ?? null;
         if ($request->filled('password')) {
             $user->password = $request->password; // casted in model
         }
         $user->save();
+        $user->disciplines()->sync($disciplineIds);
 
         return redirect()->route('admin.users.index')->with('success', 'Usuario actualizado correctamente.');
     }
     public function store(Request $request)
     {
-        $request->validate([
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
             'role' => 'required|string',
             'department_id' => 'nullable|exists:departments,id',
             'discipline_id' => 'nullable|exists:disciplines,id',
-            
-        ]);
+            'discipline_ids' => 'nullable|array',
+            'discipline_ids.*' => 'exists:disciplines,id',
+        ];
+
+        if (in_array($request->role, ['supervisor', 'tecnico'], true)) {
+            $rules['department_id'] = 'required|exists:departments,id';
+        }
+
+        if ($request->role === 'tecnico') {
+            $rules['discipline_id'] = [
+                'required',
+                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+            ];
+        }
+
+        if ($request->role === 'supervisor') {
+            $rules['discipline_ids'] = 'required|array|min:1';
+            $rules['discipline_ids.*'] = [
+                'required',
+                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+            ];
+        }
+
+        $request->validate($rules);
+
+        $disciplineIds = $request->input('discipline_ids', []);
+        if ($request->filled('discipline_id') && empty($disciplineIds)) {
+            $disciplineIds = [$request->discipline_id];
+        }
 
         $password = 'admin123'; 
 
-        User::create([
+        $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
             'department_id' => $request->department_id ?: null,
-            'discipline_id' => $request->discipline_id ?: null,
+            'discipline_id' => $disciplineIds[0] ?? null,
             'password' => $password, // casted in model
         ]);
+
+        $user->disciplines()->sync($disciplineIds);
 
         return redirect()->route('admin.users.index')->with('success', 'Usuario creado exitosamente.');
     }

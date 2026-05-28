@@ -57,8 +57,6 @@ class WorkSheetController extends Controller
 
     public function create()
     {
-        $departments = Department::all();
-
         date_default_timezone_set('America/Caracas');
 
         $currentStart = $this->getWeekStartThursday();
@@ -66,6 +64,13 @@ class WorkSheetController extends Controller
 
         $currentWeek = $this->resolveWeekNumber($currentStart);
         $nextWeek = $this->resolveWeekNumber($nextStart);
+
+        $nextYear = date('Y', strtotime($nextStart));
+
+        $departments = Department::whereDoesntHave('worksheets', function ($query) use ($nextWeek, $nextYear) {
+            $query->where('week_number', $nextWeek)
+                ->whereYear('start_date', $nextYear);
+        })->get();
 
         $currentEnd = date('Y-m-d', strtotime('+6 days', strtotime($currentStart)));
         $nextEnd = date('Y-m-d', strtotime('+6 days', strtotime($nextStart)));

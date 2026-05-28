@@ -11,16 +11,22 @@
     'disciplineId' => null,
     'extraplan' => false,
     'filtroFechas' => false,
+    'weekOptions' => [],
 ])
 
 @php
+
     $dummyId = 'DUMMY_ID';
     $dummyWorkOrderId = 'DUMMY_W';
     $dummyDisciplineId = 'DUMMY_D';
     $showUrl = ($ver) ? route($routePrefix . '.show', $dummyId) : '';
     $editUrl = ($editar) ? route($routePrefix . '.edit', $dummyId) : '';
     $deleteUrl = ($eliminar) ? route($routePrefix . '.destroy', $dummyId) : '';
-    $reportUrl =  ($reportar) ? route('tecnico.reportar.formulario', ['id_disciplina' => $dummyDisciplineId, 'work_order' => $dummyWorkOrderId]) : '';
+    $reportUrl =  ($reportar)
+        ? (auth()->user()->role === 'supervisor'
+            ? route('supervisor.reportar.formulario', ['id_disciplina' => $dummyDisciplineId, 'work_order' => $dummyWorkOrderId])
+            : route('tecnico.reportar.formulario', ['id_disciplina' => $dummyDisciplineId, 'work_order' => $dummyWorkOrderId]))
+        : '';
     
     $createParams = [];
     if ($worksheetId) {
@@ -50,9 +56,26 @@
         reportOrder: null,
         reportTask: null,
         observationInput: '',
-        statusFilter: 'ALL',
+        supervisorDisciplineIds: @js(auth()->user()->role === 'supervisor' ? auth()->user()->disciplines->pluck('id')->toArray() : []),
+        statusFilter: @js(request()->query('status', 'ALL')),
+        weekFilter: '',
+        weeks: @js($weekOptions),
         dateFrom: '',
         dateTo: '',
+        setWeek(value) {
+            this.weekFilter = value;
+            if (!value) {
+                this.dateFrom = '';
+                this.dateTo = '';
+            } else {
+                const week = this.weeks.find(w => w.value === value);
+                if (week) {
+                    this.dateFrom = week.start;
+                    this.dateTo = week.end;
+                }
+            }
+            this.page = 1;
+        },
         getPdfUrl() {
             const params = new URLSearchParams();
             if (this.statusFilter && this.statusFilter !== 'ALL') params.set('status', this.statusFilter);
@@ -108,6 +131,9 @@
             this.observationInput = this.reportTask?.observation || '';
             this.showReportModal = true;
         },
+        getSupervisorPendingTask(order) {
+            return order.tasks?.find(task => task.status === 'PENDIENTE' && this.supervisorDisciplineIds.includes(task.discipline_id)) ?? null;
+        },
         getReportUrl(workOrderId, disciplineId) {
             const selectedDisciplineId = disciplineId || this.disciplineId;
             if (!selectedDisciplineId) {
@@ -147,18 +173,29 @@
                     />
                 </div>
                 @if($filtroFechas)
-                <div class="flex w-full gap-2">
-                     <div class="sm:col-span-1 md:w-1/2 me-2">
-                    <input type="date" id="dateFrom" x-model="dateFrom" @input="page = 1"
-                        class="block w-full px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
+                <div class="sm:col-span-1">
+                    <x-select
+                        name="weekFilter"
+                        :options="$weekOptions"
+                        selected="{{ old('weekFilter', '') }}"
+                        placeholder="Filtrar por semana"
+                        class="w-full"
+                        :nullable="true"
+                        :buscable="true"
+                        nullableLabel="Todas las semanas"
+                        @change="setWeek($event.detail)"
+                    />
                 </div>
-                <div class="sm:col-span-1  md:w-1/2 me-2">
-                    <input type="date" id="dateTo" x-model="dateTo" @input="page = 1"
-                        class="block w-full px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
+                <div class="flex w-full gap-2 col-span-2">
+                    <div class="sm:col-span-1 md:w-1/2 me-2">
+                        <input type="date" id="dateFrom" x-model="dateFrom" @input="weekFilter = ''; page = 1"
+                            class="block w-full px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
+                    </div>
+                    <div class="sm:col-span-1  md:w-1/2 me-2">
+                        <input type="date" id="dateTo" x-model="dateTo" @input="weekFilter = ''; page = 1"
+                            class="block w-full px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
+                    </div>
                 </div>
-
-                </div>
-                 
                 @endif
             </div>
             @if ($crear)
@@ -287,6 +324,12 @@
                                         Reportar
                                     </a>
                                 </template>
+                            <template x-if="authRole === 'supervisor' && getSupervisorPendingTask(order)">
+                                    <a :href="getReportUrl(order.id, getSupervisorPendingTask(order)?.discipline_id)"
+                                       class="inline-flex items-center justify-center rounded bg-slate-100 text-slate-700 px-2 py-1 text-[10px] font-semibold hover:bg-slate-200 transition">
+                                        Reportar
+                                    </a>
+                                </template>
                                 <template x-if="order.tasks?.[0]?.status !== 'PENDIENTE'">
                                     <button type="button"
                                             @click.prevent="openReportModal(order)"
@@ -401,8 +444,8 @@
                     </div>
 
                     @if(auth()->user()->role === 'admin' || auth()->user()->role === 'supervisor')
-                        <div class="mt-4 text-right">
-                            <button type="submit" class="inline-flex items-center rounded bg-slate-600 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-700 transition" x-text="reportTask?.status === 'COMPLETADO' ? 'Actualizar Observacion' : 'Completar Cierre'"></button>
+                        <div class="mt-4 text-right" x-show="reportTask?.status === 'POR REVISION'">
+                            <button type="submit" class="inline-flex items-center rounded bg-slate-600 text-white px-4 py-2 text-sm font-semibold hover:bg-slate-700 transition">Completar Cierre</button>
                         </div>
                     @endif
                 </form>

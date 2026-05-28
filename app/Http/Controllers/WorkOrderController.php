@@ -308,12 +308,23 @@ class WorkOrderController extends Controller
 
     public function formulario($id_discipline, $work_order_id)
     {
-        if(auth()->user()->discipline_id !== (int)$id_discipline) {
-            abort(403, 'No tienes permiso para ver este formulario.');
+        $user = auth()->user();
+
+        if ($user->role === 'tecnico') {
+            if ($user->discipline_id !== (int) $id_discipline) {
+                abort(403, 'No tienes permiso para ver este formulario.');
+            }
+
+            if (! $user->discipline_id) {
+                abort(403, 'No tienes una disciplina asignada. Contacta al administrador.');
+            }
         }
 
-        if (!auth()->user()->discipline_id) {
-            abort(403, 'No tienes una disciplina asignada. Contacta al administrador.');
+        if ($user->role === 'supervisor') {
+            $supervisorDisciplineIds = $user->disciplines->pluck('id')->map(fn($id) => (int) $id)->all();
+            if (! in_array((int) $id_discipline, $supervisorDisciplineIds, true)) {
+                abort(403, 'No tienes permiso para ver este formulario.');
+            }
         }
 
         $tasks_uncompleted = OrderTask::where('work_order_id', $work_order_id)
@@ -321,20 +332,17 @@ class WorkOrderController extends Controller
             ->where('status', 'PENDIENTE')
             ->count();
 
-            if ($tasks_uncompleted < 1) {
-                return redirect()->route('tecnico.actividades', $id_discipline)->with('error', 'No puedes reportar esta orden porque no tienes actividades pendientes.');
+        if ($tasks_uncompleted < 1) {
+            if ($user->role === 'supervisor') {
+                return redirect()->route('supervisor.workorders.index')->with('error', 'No puedes reportar esta orden porque no tienes actividades pendientes en esa disciplina.');
             }
-        
 
-        
+            return redirect()->route('tecnico.actividades', $id_discipline)->with('error', 'No puedes reportar esta orden porque no tienes actividades pendientes.');
+        }
+
         $workOrder = WorkOrder::with(['tasks' => function ($query) use ($id_discipline) {
             $query->where('discipline_id', $id_discipline);
         }, 'installation', 'equipment'])->findOrFail($work_order_id);
-
-        if(auth()->user()->discipline_id !== (int)$id_discipline) {
-            abort(403, 'No tienes permiso para ver este formulario.');
-        }
-
 
         return view('workorders.reportar')->with('workOrder', $workOrder);
     }
@@ -367,6 +375,8 @@ public function reportar(Request $request, $id)
         }
 
         $user_id = auth()->id();
+        $user = auth()->user();
+
         $request->validate([
             'codigo' => 'required|string',
             'observacion' => 'required|string',
@@ -377,8 +387,19 @@ public function reportar(Request $request, $id)
 
         $task = OrderTask::findOrFail($request->order_task_id);
 
+        if ($user->role === 'tecnico' && $user->discipline_id !== $task->discipline_id) {
+            abort(403, 'No tienes permiso para reportar esta actividad.');
+        }
+
+        if ($user->role === 'supervisor') {
+            $supervisorDisciplineIds = $user->disciplines->pluck('id')->map(fn($id) => (int) $id)->all();
+            if (! in_array($task->discipline_id, $supervisorDisciplineIds, true)) {
+                abort(403, 'No tienes permiso para reportar esta actividad.');
+            }
+        }
+
         $newStatus = 'POR REVISION';
-        if (in_array(auth()->user()->role, ['admin', 'supervisor'])) {
+        if (in_array($user->role, ['admin', 'supervisor'])) {
             if (in_array($task->status, ['POR REVISION', 'COMPLETADO'])) {
                 $newStatus = 'COMPLETADO';
             }
@@ -519,20 +540,39 @@ public function reportar(Request $request, $id)
             }
         }
 
-        if ($status) {
-            $query->whereHas('tasks', function ($taskQuery) use ($status) {
-                $taskQuery->where('order_tasks.status', $status);
-            });
-        }
-
         $workOrders = $query->get();
+
+        $weekOptions = collect($workOrders)
+            ->flatMap(fn($order) => $order->tasks->pluck('date')->filter())
+            ->map(function ($date) {
+                $taskDate = Carbon::parse($date, 'America/Caracas');
+                $dayOfWeek = (int) $taskDate->format('N');
+                if ($dayOfWeek >= 4) {
+                    $weekStart = $taskDate->copy()->subDays($dayOfWeek - 4);
+                } else {
+                    $weekStart = $taskDate->copy()->subDays($dayOfWeek + 3);
+                }
+                $weekEnd = $weekStart->copy()->addDays(6);
+                $weekNumber = (int) $weekStart->format('W');
+                return [
+                    'value' => $weekStart->toDateString(),
+                    'start' => $weekStart->toDateString(),
+                    'end' => $weekEnd->toDateString(),
+                    'label' => 'Semana ' . $weekNumber . ' — ' . $weekStart->format('d/m') . ' - ' . $weekEnd->format('d/m'),
+                ];
+            })
+            ->unique('value')
+            ->sortByDesc('value')
+            ->values()
+            ->all();
 
         $departmentID = auth()->user()->department_id ?? null;
         $dapartmentName = $departmentID ? DB::table('departments')->where('id', $departmentID)->value('name') : 'N/A';
-
+       
         return view('workorders.historial')
             ->with('workOrders', $workOrders)
-            ->with('departmentName', $dapartmentName);
+            ->with('departmentName', $dapartmentName)
+            ->with('weekOptions', $weekOptions);
     }
 
     public function historialPdf(Request $request)

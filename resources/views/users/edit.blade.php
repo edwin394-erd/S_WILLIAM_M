@@ -12,10 +12,11 @@
         <x-input name="email" label="Email" type="email" value="{{ $user->email }}" required />
 
         <x-select 
+            id="select-role"
             name="role" 
             label="Rol del Usuario" 
             :options="['admin' => 'Administrador', 'supervisor' => 'Supervisor', 'tecnico' => 'Técnico', 'planificador' => 'Planificador']" 
-            selected="{{ $user->role }}"
+            selected="{{ old('role', $user->role) }}"
             placeholder="Seleccione un rol"
             required
         />
@@ -28,22 +29,38 @@
                     name="department_id" 
                     label="Departamento" 
                     :options="$departments_with_disciplines->pluck('name', 'id')->toArray()" 
-                    selected="{{ $user->department_id }}"
+                    selected="{{ old('department_id', $user->department_id) }}"
                     placeholder="Seleccione"
                     :nullable="true"
                 />
             </div>
             <div class="w-1/2">
-                <x-select 
-                    id="select-discipline"
-                    name="discipline_id" 
-                    label="Disciplina" 
-                    :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
-                    selected="{{ $user->discipline_id }}"
-                    placeholder="Seleccione"
-                    buscable="true"
-                    :nullable="true"
-                />
+                <div id="discipline-single-wrapper" class="{{ old('role', $user->role) === 'supervisor' ? 'hidden' : '' }}">
+                    <x-select 
+                        id="select-discipline-single"
+                        name="discipline_id" 
+                        label="Disciplina" 
+                        :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
+                        selected="{{ old('discipline_id', $user->discipline_id) }}"
+                        placeholder="Seleccione"
+                        buscable="true"
+                        :nullable="true"
+                    />
+                </div>
+
+                <div id="discipline-multi-wrapper" class="{{ old('role', $user->role) === 'supervisor' ? '' : 'hidden' }}">
+                    <label for="select-discipline-multi" class="block mb-2.5 text-sm font-medium text-heading">Disciplinas</label>
+                    <select id="select-discipline-multi" name="discipline_select"
+                        class="block w-full rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:border-slate-500 focus:ring-slate-500">
+                        <option value="">Seleccione una disciplina...</option>
+                    </select>
+                    <div id="discipline-tags" class="flex flex-nowrap gap-2 mt-3 overflow-x-auto whitespace-nowrap max-h-14 py-1"></div>
+                    <div id="discipline-hidden-inputs"></div>
+                    @error('discipline_ids')
+                        <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
+                    @enderror
+                    <p class="text-xs text-gray-500 mt-1">Selecciona las disciplinas una por una y verás las etiquetas abajo.</p>
+                </div>
             </div>
         </div>
         <br>
@@ -56,27 +73,157 @@
 @section('scripts')
 <script>
     const departments = @json($departments_with_disciplines);
+    const allDisciplines = @json($departments_with_disciplines->flatMap->disciplines->pluck('name', 'id')->toArray());
+    const roleSelect = document.getElementById('select-role');
+    const departmentSelect = document.getElementById('select-department');
+    const disciplineSingleWrapper = document.getElementById('discipline-single-wrapper');
+    const disciplineMultiWrapper = document.getElementById('discipline-multi-wrapper');
+    const disciplineSingleComponent = document.getElementById('select-discipline-single');
+    const disciplineMultiSelect = document.getElementById('select-discipline-multi');
+    const disciplineTags = document.getElementById('discipline-tags');
+    const disciplineHiddenInputs = document.getElementById('discipline-hidden-inputs');
 
-    document.getElementById('select-department').addEventListener('change', function(e) {
-        const departmentId = e.detail;
-        const disciplineSelect = document.getElementById('select-discipline');
-        if (!disciplineSelect) return;
+    let selectedDisciplineIds = @json(old('discipline_ids', $user->disciplines->pluck('id')->toArray()));
+    const initialRole = '{{ old('role', $user->role) }}';
+    const initialDepartmentId = '{{ old('department_id', $user->department_id) }}';
 
+    function setRoleUI(role) {
+        if (role === 'supervisor') {
+            disciplineSingleWrapper.classList.add('hidden');
+            disciplineMultiWrapper.classList.remove('hidden');
+        } else {
+            disciplineSingleWrapper.classList.remove('hidden');
+            disciplineMultiWrapper.classList.add('hidden');
+        }
+    }
+
+    function buildHiddenInputs() {
+        if (!disciplineHiddenInputs) return;
+        disciplineHiddenInputs.innerHTML = '';
+        selectedDisciplineIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'discipline_ids[]';
+            input.value = id;
+            disciplineHiddenInputs.appendChild(input);
+        });
+    }
+
+    function setSingleOptions(disciplines) {
+        if (!disciplineSingleComponent) return;
+        const alpineData = window.Alpine ? Alpine.$data(disciplineSingleComponent) : disciplineSingleComponent.__x$data;
+        if (!alpineData) return;
+
+        const options = {};
+        disciplines.forEach(discipline => {
+            options[discipline.id] = discipline.name;
+        });
+        alpineData.options = options;
+        if (!Object.keys(options).includes(alpineData.selected)) {
+            alpineData.selected = '';
+        }
+    }
+
+    function setMultiOptions(disciplines) {
+        if (!disciplineMultiSelect) return;
+        disciplineMultiSelect.innerHTML = '<option value="">Seleccione una disciplina...</option>';
+        disciplines.forEach(discipline => {
+            const option = document.createElement('option');
+            option.value = discipline.id;
+            option.textContent = discipline.name;
+            disciplineMultiSelect.appendChild(option);
+        });
+    }
+
+    function renderDisciplineTags() {
+        if (!disciplineTags) return;
+        disciplineTags.innerHTML = '';
+        selectedDisciplineIds.forEach(id => {
+            const tag = document.createElement('span');
+            tag.className = 'inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700';
+            tag.innerHTML = `<span>${allDisciplines[id] ?? 'Disciplina'}</span><button type="button" data-value="${id}" class="text-slate-500 hover:text-slate-700">✕</button>`;
+            disciplineTags.appendChild(tag);
+        });
+    }
+
+    function addDisciplineId(id) {
+        if (!id || selectedDisciplineIds.includes(id)) return;
+        selectedDisciplineIds.push(id);
+        buildHiddenInputs();
+        renderDisciplineTags();
+    }
+
+    function removeDisciplineId(id) {
+        selectedDisciplineIds = selectedDisciplineIds.filter(value => value !== id);
+        buildHiddenInputs();
+        renderDisciplineTags();
+    }
+
+    function updateDisciplineOptions(departmentId) {
         const selectedDept = departments.find(d => d.id == departmentId);
-        const newOptions = {};
+        const options = selectedDept ? selectedDept.disciplines : departments.flatMap(d => d.disciplines);
+        setSingleOptions(options);
+        setMultiOptions(options);
 
-        if (selectedDept && selectedDept.disciplines) {
-            selectedDept.disciplines.forEach(d => {
-                newOptions[d.id] = d.name;
-            });
-        }
+        const validIds = options.map(discipline => discipline.id.toString());
+        selectedDisciplineIds = selectedDisciplineIds.filter(id => validIds.includes(id.toString()));
+        buildHiddenInputs();
+        renderDisciplineTags();
+    }
 
-        const alpineData = window.Alpine ? Alpine.$data(disciplineSelect) : disciplineSelect.__x$data;
-        if (alpineData) {
-            alpineData.options = newOptions;
-            alpineData.selected = null;
-            alpineData.search = '';
-        }
-    });
+    function resetSupervisorDisciplines() {
+        selectedDisciplineIds = [];
+        buildHiddenInputs();
+        renderDisciplineTags();
+    }
+
+    function getSelectValue(e, element) {
+        return e?.detail ?? element?.value ?? '';
+    }
+
+    if (roleSelect) {
+        roleSelect.addEventListener('change', function(e) {
+            const role = getSelectValue(e, roleSelect);
+            setRoleUI(role);
+            resetSupervisorDisciplines();
+        });
+    }
+
+    if (departmentSelect) {
+        departmentSelect.addEventListener('change', function(e) {
+            const departmentId = getSelectValue(e, departmentSelect);
+            updateDisciplineOptions(departmentId);
+            if (getSelectValue(null, roleSelect) === 'supervisor') {
+                resetSupervisorDisciplines();
+            }
+        });
+    }
+
+    if (disciplineMultiSelect) {
+        disciplineMultiSelect.addEventListener('change', function() {
+            const selectedId = this.value;
+            if (!selectedId) return;
+            addDisciplineId(selectedId);
+            this.value = '';
+        });
+    }
+
+    if (disciplineTags) {
+        disciplineTags.addEventListener('click', function(event) {
+            const button = event.target.closest('button[data-value]');
+            if (!button) return;
+            const value = button.dataset.value;
+            removeDisciplineId(value);
+        });
+    }
+
+    setRoleUI(initialRole);
+    if (initialDepartmentId) {
+        updateDisciplineOptions(initialDepartmentId);
+    } else {
+        updateDisciplineOptions('');
+    }
+    buildHiddenInputs();
+    renderDisciplineTags();
 </script>
 @endsection

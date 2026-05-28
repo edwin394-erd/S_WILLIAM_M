@@ -78,6 +78,9 @@ Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(functi
     // Mover aquí (ANTES de las rutas que usan parámetros o resource)
     Route::get('/workorders/historial', [WorkOrderController::class, 'historial'])->name('supervisor.workorders.historial');
     Route::get('/workorders/historial/pdf', [WorkOrderController::class, 'historialPdf'])->name('supervisor.workorders.historial.pdf');
+
+    Route::get('/disciplina/{id_disciplina}/actividades/{work_order}/reportar', [WorkOrderController::class, 'formulario'])->name('supervisor.reportar.formulario');
+    Route::post('/disciplina/actividades/{work_order}/reportar', [WorkOrderController::class, 'reportar'])->name('supervisor.reportar.orden');
     
     Route::get('/workorders', [WorkOrderController::class, 'supervisorWorkOrders'])->name('supervisor.workorders.index');
     Route::get('/workorders/{work_order}', [WorkOrderController::class, 'show'])->name('supervisor.workorders.show');

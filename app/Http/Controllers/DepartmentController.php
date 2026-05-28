@@ -70,7 +70,29 @@ class DepartmentController extends Controller
 
     public function destroy($id)
     {
-        Department::destroy($id);
+        $department = Department::withCount(['users', 'disciplines', 'worksheets'])->findOrFail($id);
+
+        if ($department->users_count > 0 || $department->disciplines_count > 0 || $department->worksheets_count > 0) {
+            $message = 'No se puede eliminar el departamento porque tiene ';
+            $parts = [];
+
+            if ($department->users_count > 0) {
+                $parts[] = 'usuarios asignados';
+            }
+            if ($department->disciplines_count > 0) {
+                $parts[] = 'disciplinas asociadas';
+            }
+            if ($department->worksheets_count > 0) {
+                $parts[] = 'sábanas asociadas';
+            }
+
+            $message .= implode(' y ', $parts) . '.';
+
+            return redirect()->route('admin.departments.index')->with('error', $message);
+        }
+
+        $department->delete();
+
         return redirect()->route('admin.departments.index')->with('success', 'Departamento eliminado exitosamente.');
     }
 

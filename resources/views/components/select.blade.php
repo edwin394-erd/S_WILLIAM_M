@@ -9,8 +9,8 @@
     'nullableLabel' => null,
 ])
 
-<div {{ $attributes->merge(['class' => 'relative']) }} {{-- 'relative' aquí es vital --}}
-    x-data="{ 
+<div {{ $attributes->merge(['class' => 'relative']) }}
+     x-data="{ 
         open: false,
         search: '',
         selected: @js($selected),
@@ -27,14 +27,12 @@
             } else {
                 entries = Object.entries(this.options).map(([value, label]) => ({ value, label }));
             }
-
             if (this.nullable) {
                 return [{
                     value: '',
                     label: this.nullableLabel || '{{ $attributes->get('placeholder') ?? 'Seleccione...' }}',
                 }, ...entries];
             }
-
             return entries;
         },
         get filteredOptions() {
@@ -46,24 +44,23 @@
             return this.showAll ? this.filteredOptions : this.filteredOptions.slice(0, this.maxVisible);
         },
         computeDirection() {
-            // compute whether dropdown should open upwards based on available space
             const trig = $refs.trigger;
             const drop = $refs.dropdown;
             if (!trig || !drop) return;
             const rect = trig.getBoundingClientRect();
-            // estimate dropdown height
             const estHeight = Math.min(drop.scrollHeight || 0, window.innerHeight * 0.6);
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
             this.dropUp = (spaceBelow < estHeight && spaceAbove > spaceBelow);
             drop.style.maxHeight = estHeight + 'px';
         },
-
         displayLabel() {
-            const selectedOption = this.optionEntries.find(option => option.value === this.selected);
+            const selectedOption = this.optionEntries.find(option => option.value == this.selected);
             return selectedOption?.label || '{{ $attributes->get('placeholder') ?? 'Seleccione...' }}';
         }
      }"
+     x-modelable="selected"
+     x-effect="if ($el.options !== undefined) options = $el.options"
      @click.away="open = false">
 
     @if($label)
@@ -103,7 +100,7 @@
 
         <div class="max-h-60 overflow-y-auto">
             <template x-for="option in visibleOptions" :key="option.value">
-                <div @click="selected = option.value; open = false; search = ''; $dispatch('change', option.value)" 
+                <div @click="selected = option.value; open = false; search = ''; $dispatch('input', option.value); $dispatch('change', option.value)" 
                      class="px-3 py-2 text-sm cursor-pointer hover:bg-brand hover:text-white transition-colors"
                      :class="selected == option.value ? 'bg-brand/10 font-bold text-brand' : 'text-gray-700'"
                      x-text="option.label">
@@ -123,4 +120,8 @@
     @error($name)
         <span class="text-xs text-red-500 mt-1 block">{{ $message }}</span>
     @enderror
+    {{-- DEBUG EN EL HIJO --}}
+{{-- <div class="text-xs text-red-500 font-mono mt-1">
+    Opciones en Hijo: <span x-text="JSON.stringify(options)"></span>
+</div> --}}
 </div>

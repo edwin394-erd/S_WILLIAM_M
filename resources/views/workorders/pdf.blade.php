@@ -35,12 +35,6 @@
             return $d ? \Carbon\Carbon::parse($d)->format('Y-m-d') : 'Sin fecha';
         });
 
-        // Sort groups by date descending; keep 'Sin fecha' at the end
-        $grouped = $grouped->sortByDesc(function($orders, $dateKey) {
-            if ($dateKey === 'Sin fecha') return -INF;
-            return \Carbon\Carbon::parse($dateKey)->getTimestamp();
-        });
-
         // department name if all same
         $departments = $workOrders->map(fn($o) => optional($o->workSheet->department)->name)->unique()->filter();
         $departmentName = $departments->count() === 1 ? $departments->first() : 'VARIOS';
@@ -88,36 +82,47 @@
         </tr>
     </table>
 
-    <table>
+     <table>
+        <colgroup>
+            <col style="width: 4%;">
+            <col style="width: 10%;">
+            <col style="width: 8%;">
+            <col style="width: 50%;">
+            <col style="width: 12%;">
+            <col style="width: 10%;">
+            <col style="width: 6%;">
+        </colgroup>
         <tbody>
             @foreach($grouped as $date => $orders)
                 <tr class="date-divider">
-                    <td colspan="6" style="padding-left: 10px; border: none;">
-                        {{ $date === 'Sin fecha' ? 'SIN FECHA' : strtoupper(\Carbon\Carbon::parse($date)->translatedFormat('l, d \d\e F \d\e Y')) }}
+                    <td colspan="5" style="padding-left: 10px; border: none;">
+                        {{ strtoupper(\Carbon\Carbon::parse($date)->translatedFormat('l, d \d\e F \d\e Y')) }}
                     </td>
-                    <td style="width: 33%; text-align: right; padding-right: 10px;">TOTAL ODM POR FECHA: {{ $orders->count() }}</td>
+                    <td colspan="2" style="text-align: right; padding-right: 10px; border: none;">TOTAL ODM POR FECHA: {{ $orders->count() }}</td>
                 </tr>
 
                 @foreach($orders as $workOrder)
-                    <tr class="order-header-row">
-                        <td style="width: 4%; border: none;">AR</td>
-                        <td style="width: 10%; border: none;">ODM</td>
-                        <td style="width: 8%; border: none;">TIPO</td>
-                        <td style="width: 42%; border: none;">ACCION REQUERIDA</td>
-                        <td style="width: 15%; border: none;">INSTALACION</td>
-                        <td style="width: 15%; border: none;">EQUIPO</td>
-                        <td style="width: 5%; border: none;">IMPACTO</td>
-                    </tr>
+                <tr class="order-header-row">
+                    <td style="width: 4%; border: none;">AR</td>
+                    <td style="width: 10%; border: none;">ODM</td>
+                    <td style="width: 8%; border: none;">TIPO</td>
+                    <td style="width: 50%; border: none; text-align: left; padding-left: 5px;">ACCION REQUERIDA</td>
+                    <td style="width: 12%; border: none; text-align: left; padding-left: 5px;">INSTALACION</td>
+                    <td style="width: 10%; border: none; text-align: left; padding-left: 5px;">EQUIPO</td>
+                    <td style="width: 6%; border: none;">IMPACTO</td>
+                </tr>
 
-                    <tr class="order-data-row">
-                        <td class="text-center {{ $workOrder->is_high_risk ? 'ar-yes' : '' }}" style="border: none;">{{ $workOrder->is_high_risk ? 'SÍ' : 'NO' }}</td>
-                        <td class="text-center" style="border: none;">{{ $workOrder->odm_number }}</td>
-                        <td class="text-center" style="border: none;">{{ $workOrder->type }}</td>
-                        <td style="border: none;">{{ strtoupper($workOrder->accion_requerida) }}</td>
-                        <td style="border: none;">{{ optional($workOrder->installation)->name }}</td>
-                        <td style="border: none;">{{ optional($workOrder->equipment)->name }}</td>
-                        <td class="text-center" style="border: none;">{{ $workOrder->impacto }} Bls</td>
-                    </tr>
+                <tr class="order-data-row">
+                    <td class="text-center {{ $workOrder->is_high_risk ? 'ar-yes' : '' }}" style="width: 4%; border: none;">
+                        {{ $workOrder->is_high_risk ? 'SÍ' : 'NO' }}
+                    </td>
+                    <td class="text-center" style="width: 10%; border: none;">{{ $workOrder->odm_number }}</td>
+                    <td class="text-center" style="width: 8%; border: none;">{{ $workOrder->type }}</td>
+                    <td style="width: 50%; border: none; text-align: left; padding-left: 5px;">{{ strtoupper($workOrder->accion_requerida) }}</td>
+                    <td style="width: 12%; border: none; text-align: left; padding-left: 5px;">{{ $workOrder->installation->name }}</td>
+                    <td style="width: 10%; border: none; text-align: left; padding-left: 5px;">{{ $workOrder->equipment->name }}</td>
+                    <td class="text-center" style="width: 6%; border: none;">{{ $workOrder->impacto }} Bls</td>
+                </tr>
 
                     @foreach($workOrder->tasks as $task)
                         <tr class="task-row">

@@ -20,4 +20,9 @@ class Department extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function worksheets(): HasMany
+    {
+        return $this->hasMany(WorkSheet::class);
+    }
 }

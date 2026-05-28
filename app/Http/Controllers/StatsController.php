@@ -3,95 +3,159 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\Discipline;
 use App\Models\OrderTask;
 use App\Models\WorkOrder;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class StatsController extends Controller
 {
-    public function supervisorStats()
+    public function supervisorStats(Request $request)
     {
         $departmentId = Auth::user()->department_id;
         $departmentName = Department::find($departmentId)->name ?? 'Sin departamento';
 
-        $totalOrders = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+        $weekOptions = $this->weekOptions();
+        $selectedWeekStart = $request->query('week_start');
+        $selectedDisciplineId = $request->query('discipline_id');
+        $weekStart = null;
+        $weekEnd = null;
+
+        $disciplineOptions = Discipline::where('department_id', $departmentId)
+            ->pluck('name', 'id')
+            ->toArray();
+        $allDisciplineOptions = $disciplineOptions;
+
+        if ($selectedWeekStart) {
+            try {
+                $weekStart = Carbon::parse($selectedWeekStart)->startOfDay();
+                $weekStart = $this->getWeekStart($weekStart);
+                $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
+                $selectedWeekStart = $weekStart->toDateString();
+            } catch (\Exception $e) {
+                $selectedWeekStart = null;
+            }
+        }
+
+        $weekLabel = $weekStart ? 'Semana ' . $weekStart->format('W') . ' — ' . $weekStart->format('d/m') . ' - ' . $weekEnd->format('d/m') : null;
+        $conversionLabel = $weekStart ? 'Semana ' . ($weekStart->format('W')) : 'Meses: ' . ($weekStart ? 7 : count($this->chartMonths(Carbon::now()->subMonths(5)->startOfMonth())));
+
+        $applyDateFilter = function ($query) use ($weekStart, $weekEnd) {
+            if ($weekStart) {
+                $query->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]);
+            }
+        };
+
+        $totalOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('disciplines.department_id', $departmentId)
-            ->distinct('work_orders.id')
-            ->count('work_orders.id');
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($totalOrdersQuery);
+        $totalOrders = $totalOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
 
-        $ordersByType = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+        $ordersByTypeQuery = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
             ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('disciplines.department_id', $departmentId)
-            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->where('order_tasks.status', 'COMPLETADO');
+        $applyDateFilter($ordersByTypeQuery);
+        $ordersByType = $ordersByTypeQuery
             ->groupBy('work_orders.type')
             ->orderBy('work_orders.type')
             ->pluck('total', 'type')
             ->toArray();
 
-        $highRiskOrders = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+        $highRiskOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('work_orders.is_high_risk', true)
             ->where('disciplines.department_id', $departmentId)
-            ->distinct('work_orders.id')
-            ->count('work_orders.id');
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($highRiskOrdersQuery);
+        $highRiskOrders = $highRiskOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
 
-        $extraPlanOrders = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+        $extraPlanOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('work_orders.is_extraplan', true)
             ->where('disciplines.department_id', $departmentId)
-            ->distinct('work_orders.id')
-            ->count('work_orders.id');
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($extraPlanOrdersQuery);
+        $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
 
-        $tasksByStatus = OrderTask::selectRaw('status, count(*) as total')
+        $tasksByStatusQuery = OrderTask::selectRaw('status, count(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('disciplines.department_id', $departmentId)
-            ->groupBy('status')
-            ->pluck('total', 'status')
-            ->toArray();
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($tasksByStatusQuery);
+        $tasksByStatus = $tasksByStatusQuery->groupBy('status')->pluck('total', 'status')->toArray();
 
-        $endDate = Carbon::now()->endOfMonth();
-        $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+        $totalTasks = array_sum($tasksByStatus);
+        $generalCompletionPercentage = $totalTasks > 0 ? round((($tasksByStatus['COMPLETADO'] ?? 0) / $totalTasks) * 100, 1) : 0;
 
-        $completedTasks = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, MONTH(order_tasks.date) as month_number, count(*) as total')
-            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->where('disciplines.department_id', $departmentId)
-            ->where('order_tasks.status', 'COMPLETADO')
-            ->whereBetween('order_tasks.date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->groupBy('disciplines.id', 'disciplines.name', 'month_number')
-            ->orderBy('month_number')
-            ->get();
+        $useWeeklyChart = $weekStart !== null;
 
-        $monthLabels = $this->monthLabels();
-        $chartMonths = $this->chartMonths($startDate);
-        $chartCategories = $this->chartCategories($startDate, $monthLabels);
+        if ($useWeeklyChart) {
+            $completedTasks = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, DATE(order_tasks.date) as task_date, count(*) as total')
+                ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->where('disciplines.department_id', $departmentId)
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+                ->where('order_tasks.status', 'COMPLETADO')
+                ->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+                ->groupBy('disciplines.id', 'disciplines.name', 'task_date')
+                ->orderBy('task_date')
+                ->get();
+
+            $chartDays = $this->chartWeekDays($weekStart);
+            $chartCategories = $this->chartWeekCategories($weekStart);
+        } else {
+            $endDate = Carbon::now()->endOfMonth();
+            $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+
+            $completedTasks = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, MONTH(order_tasks.date) as month_number, count(*) as total')
+                ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->where('disciplines.department_id', $departmentId)
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+                ->where('order_tasks.status', 'COMPLETADO')
+                ->whereBetween('order_tasks.date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->groupBy('disciplines.id', 'disciplines.name', 'month_number')
+                ->orderBy('month_number')
+                ->get();
+
+            $monthLabels = $this->monthLabels();
+            $chartDays = $this->chartMonths($startDate);
+            $chartCategories = $this->chartCategories($startDate, $monthLabels);
+        }
 
         $disciplineData = [];
         foreach ($completedTasks as $task) {
-            $disciplineData[$task->discipline_name][$task->month_number] = $task->total;
+            $key = $useWeeklyChart ? $task->task_date : $task->month_number;
+            $disciplineData[$task->discipline_name][$key] = $task->total;
         }
 
         $chartSeries = [];
-        foreach ($disciplineData as $disciplineName => $monthData) {
+        foreach ($disciplineData as $disciplineName => $periodData) {
             $chartSeries[] = [
                 'name' => $disciplineName,
-                'data' => array_map(fn ($month) => $monthData[$month] ?? 0, $chartMonths),
+                'data' => array_map(fn ($period) => $periodData[$period] ?? 0, $chartDays),
             ];
         }
 
         if (empty($chartSeries)) {
             $chartSeries[] = [
                 'name' => 'Sin datos',
-                'data' => array_fill(0, count($chartMonths), 0),
+                'data' => array_fill(0, count($chartDays), 0),
             ];
         }
 
-        $ordersByDiscipline = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, count(*) as total')
+        $ordersByDisciplineQuery = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, count(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('disciplines.department_id', $departmentId)
-            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->where('order_tasks.status', 'COMPLETADO');
+        $applyDateFilter($ordersByDisciplineQuery);
+        $ordersByDiscipline = $ordersByDisciplineQuery
             ->groupBy('disciplines.id', 'disciplines.name')
             ->orderBy('total', 'desc')
             ->get()
@@ -100,17 +164,52 @@ class StatsController extends Controller
             ])
             ->toArray();
 
-        $completedByMonth = $completedTasks->groupBy('month_number')
+        $completionByDisciplineData = OrderTask::selectRaw(
+                'disciplines.id as discipline_id, disciplines.name as discipline_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'COUNT(*) as total'
+            )
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->where('disciplines.department_id', $departmentId)
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+            ->groupBy('disciplines.id', 'disciplines.name')
+            ->orderBy('disciplines.name')
+            ->get();
+
+        $completionByDiscipline = $completionByDisciplineData
+            ->mapWithKeys(fn ($row) => [
+                $row->discipline_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+            ])
+            ->toArray();
+
+        $completionByDepartmentTotal = OrderTask::selectRaw(
+                'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'COUNT(*) as total'
+            )
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->where('disciplines.department_id', $departmentId)
+            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+            ->first();
+
+        $completionByDepartment = [
+            $departmentName => $completionByDepartmentTotal ? ($completionByDepartmentTotal->total > 0 ? round(($completionByDepartmentTotal->completed / $completionByDepartmentTotal->total) * 100, 1) : 0) : 0,
+        ];
+
+        $completedByPeriod = $completedTasks->groupBy($useWeeklyChart ? 'task_date' : 'month_number')
             ->map(fn ($rows) => $rows->sum('total'));
 
-        $currentMonth = $chartMonths[count($chartMonths) - 1];
-        $previousMonth = $chartMonths[count($chartMonths) - 2];
-        $currentMonthCompleted = $completedByMonth[$currentMonth] ?? 0;
-        $previousMonthCompleted = $completedByMonth[$previousMonth] ?? 0;
+        if ($useWeeklyChart) {
+            $currentPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 1]] ?? 0;
+            $previousPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 2]] ?? 0;
+        } else {
+            $currentPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 1]] ?? 0;
+            $previousPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 2]] ?? 0;
+        }
 
-        if ($previousMonthCompleted > 0) {
-            $completedPercentage = round((($currentMonthCompleted - $previousMonthCompleted) / $previousMonthCompleted) * 100, 1);
-        } elseif ($currentMonthCompleted > 0) {
+        if ($previousPeriodCompleted > 0) {
+            $completedPercentage = round((($currentPeriodCompleted - $previousPeriodCompleted) / $previousPeriodCompleted) * 100, 1);
+        } elseif ($currentPeriodCompleted > 0) {
             $completedPercentage = 100;
         } else {
             $completedPercentage = 0;
@@ -118,6 +217,22 @@ class StatsController extends Controller
 
         $completedCount = $completedTasks->sum('total');
         $disciplineCount = count($disciplineData);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'completedOrders' => $tasksByStatus['COMPLETADO'] ?? 0,
+                'pendingOrders' => $tasksByStatus['PENDIENTE'] ?? 0,
+                'reviewOrders' => $tasksByStatus['POR REVISION'] ?? 0,
+                'notCompletedOrders' => $tasksByStatus['NO COMPLETADO'] ?? 0,
+                'chartSeries' => $chartSeries,
+                'chartCategories' => $chartCategories,
+                'ordersByType' => $ordersByType,
+                'ordersByName' => $ordersByDiscipline,
+                'completionByDepartment' => $completionByDepartment,
+                'completionByDiscipline' => $completionByDiscipline,
+                'generalCompletionPercentage' => $generalCompletionPercentage,
+            ]);
+        }
 
         return view('stats', compact(
             'totalOrders',
@@ -131,87 +246,268 @@ class StatsController extends Controller
             'disciplineCount',
             'ordersByDiscipline',
             'completedPercentage',
-            'departmentName'
+            'generalCompletionPercentage',
+            'departmentName',
+            'weekOptions',
+            'selectedWeekStart',
+            'selectedDisciplineId',
+            'disciplineOptions',
+            'completionByDepartment',
+            'completionByDiscipline',
+            'conversionLabel'
         ));
     }
 
-    public function adminStats()
+    public function adminStats(Request $request)
     {
-        $totalOrders = WorkOrder::count();
+        $weekOptions = $this->weekOptions();
+        $selectedWeekStart = $request->query('week_start');
+        $selectedDepartmentId = $request->query('department_id');
+        $selectedDisciplineId = $request->query('discipline_id');
+        $weekStart = null;
+        $weekEnd = null;
 
-        $ordersByType = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+        $departmentOptions = Department::pluck('name', 'id')->toArray();
+        $disciplinesByDepartment = Discipline::orderBy('name')
+            ->get()
+            ->groupBy('department_id')
+            ->map(fn ($rows) => $rows->pluck('name', 'id')->toArray())
+            ->toArray();
+        $allDisciplineOptions = Discipline::pluck('name', 'id')->toArray();
+        $disciplineOptions = $selectedDepartmentId
+            ? Discipline::where('department_id', $selectedDepartmentId)->pluck('name', 'id')->toArray()
+            : $allDisciplineOptions;
+
+        if ($selectedWeekStart) {
+            try {
+                $weekStart = Carbon::parse($selectedWeekStart)->startOfDay();
+                $weekStart = $this->getWeekStart($weekStart);
+                $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
+                $selectedWeekStart = $weekStart->toDateString();
+            } catch (\Exception $e) {
+                $selectedWeekStart = null;
+            }
+        }
+
+        $weekLabel = $weekStart ? 'Semana ' . $weekStart->format('W') . ' — ' . $weekStart->format('d/m') . ' - ' . $weekEnd->format('d/m') : null;
+        $conversionLabel = $weekStart ? 'Semana ' . ($weekStart->format('W')) : 'Meses: ' . ($weekStart ? 7 : count($this->chartMonths(Carbon::now()->subMonths(5)->startOfMonth())));
+
+        $applyDateFilter = function ($query) use ($weekStart, $weekEnd) {
+            if ($weekStart) {
+                $query->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]);
+            }
+        };
+
+        $totalOrdersQuery = WorkOrder::query();
+        if ($weekStart || $selectedDepartmentId || $selectedDisciplineId) {
+            $totalOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+                ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+                ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                    ->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        }
+        $totalOrders = $totalOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $ordersByTypeQuery = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
             ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
-            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->where('order_tasks.status', 'COMPLETADO');
+        $applyDateFilter($ordersByTypeQuery);
+        $ordersByType = $ordersByTypeQuery
             ->groupBy('work_orders.type')
             ->orderBy('work_orders.type')
             ->pluck('total', 'type')
             ->toArray();
 
-        $highRiskOrders = WorkOrder::where('is_high_risk', true)->count();
-        $extraPlanOrders = WorkOrder::where('is_extraplan', true)->count();
-        $tasksByStatus = OrderTask::selectRaw('status, count(*) as total')
+        $highRiskOrdersQuery = WorkOrder::where('is_high_risk', true);
+        if ($weekStart || $selectedDepartmentId || $selectedDisciplineId) {
+            $highRiskOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+                ->where('work_orders.is_high_risk', true)
+                ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+                ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                    ->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+            $highRiskOrders = $highRiskOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+        } else {
+            $highRiskOrders = $highRiskOrdersQuery->count();
+        }
+
+        $extraPlanOrdersQuery = WorkOrder::where('is_extraplan', true);
+        if ($weekStart || $selectedDepartmentId || $selectedDisciplineId) {
+            $extraPlanOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+                ->where('work_orders.is_extraplan', true)
+                ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+                ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                    ->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+            $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+        } else {
+            $extraPlanOrders = $extraPlanOrdersQuery->count();
+        }
+
+        $tasksByStatusQuery = OrderTask::query()
+            ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($tasksByStatusQuery);
+        $tasksByStatus = $tasksByStatusQuery->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status')
             ->toArray();
 
-        $endDate = Carbon::now()->endOfMonth();
-        $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+        $totalTasks = array_sum($tasksByStatus);
+        $generalCompletionPercentage = $totalTasks > 0 ? round((($tasksByStatus['COMPLETADO'] ?? 0) / $totalTasks) * 100, 1) : 0;
 
-        $completedTasks = OrderTask::selectRaw('disciplines.department_id, MONTH(order_tasks.date) as month_number, count(*) as total')
-            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->where('order_tasks.status', 'COMPLETADO')
-            ->whereBetween('order_tasks.date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->groupBy('disciplines.department_id', 'month_number')
-            ->orderBy('month_number')
-            ->get();
+        $useWeeklyChart = $weekStart !== null;
 
-        $monthLabels = $this->monthLabels();
-        $chartMonths = $this->chartMonths($startDate);
-        $chartCategories = $this->chartCategories($startDate, $monthLabels);
+        if ($useWeeklyChart) {
+            $completedTasks = OrderTask::selectRaw('disciplines.department_id, DATE(order_tasks.date) as task_date, count(*) as total')
+                ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+                ->where('order_tasks.status', 'COMPLETADO')
+                ->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+                ->groupBy('disciplines.department_id', 'task_date')
+                ->orderBy('task_date')
+                ->get();
+
+            $chartDays = $this->chartWeekDays($weekStart);
+            $chartCategories = $this->chartWeekCategories($weekStart);
+        } else {
+            $endDate = Carbon::now()->endOfMonth();
+            $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+
+            $completedTasks = OrderTask::selectRaw('disciplines.department_id, MONTH(order_tasks.date) as month_number, count(*) as total')
+                ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+                ->where('order_tasks.status', 'COMPLETADO')
+                ->whereBetween('order_tasks.date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->groupBy('disciplines.department_id', 'month_number')
+                ->orderBy('month_number')
+                ->get();
+
+            $departmentNames = Department::pluck('name', 'id')->toArray();
+            $chartDays = $this->chartMonths($startDate);
+            $chartCategories = $this->chartCategories($startDate, $this->monthLabels());
+        }
 
         $departmentNames = Department::pluck('name', 'id')->toArray();
         $departmentData = [];
         foreach ($completedTasks as $task) {
-            $departmentData[$departmentNames[$task->department_id] ?? 'Sin departamento'][$task->month_number] = $task->total;
+            $key = $useWeeklyChart ? $task->task_date : $task->month_number;
+            $departmentData[$departmentNames[$task->department_id] ?? 'Sin departamento'][$key] = $task->total;
         }
 
         $chartSeries = [];
-        foreach ($departmentData as $departmentName => $monthData) {
+        foreach ($departmentData as $departmentName => $periodData) {
             $chartSeries[] = [
                 'name' => $departmentName,
-                'data' => array_map(fn ($month) => $monthData[$month] ?? 0, $chartMonths),
+                'data' => array_map(fn ($period) => $periodData[$period] ?? 0, $chartDays),
             ];
         }
 
         if (empty($chartSeries)) {
             $chartSeries[] = [
                 'name' => 'Sin datos',
-                'data' => array_fill(0, count($chartMonths), 0),
+                'data' => array_fill(0, count($chartDays), 0),
             ];
         }
 
-        $ordersByDepartment = OrderTask::selectRaw('disciplines.department_id, count(*) as total')
+        $ordersByDepartmentQuery = OrderTask::selectRaw('disciplines.department_id, count(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->where('order_tasks.status', 'COMPLETADO');
+        $applyDateFilter($ordersByDepartmentQuery);
+
+        $ordersByDepartmentRows = $ordersByDepartmentQuery
             ->groupBy('disciplines.department_id')
             ->orderBy('total', 'desc')
-            ->get()
+            ->get();
+
+        $ordersByDepartment = $ordersByDepartmentRows
             ->mapWithKeys(fn ($row) => [
                 $departmentNames[$row->department_id] ?? 'Sin departamento' => $row->total,
             ])
             ->toArray();
 
-        $completedByMonth = $completedTasks->groupBy('month_number')
+        $ordersByDepartmentLinks = $ordersByDepartmentRows
+            ->map(fn ($row) => [
+                'id' => $row->department_id,
+                'name' => $departmentNames[$row->department_id] ?? 'Sin departamento',
+                'count' => $row->total,
+                'url' => route('admin.stats', array_filter(['week_start' => $selectedWeekStart, 'department_id' => $row->department_id])),
+            ])
+            ->toArray();
+
+        $ordersByDisciplineQuery = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, count(*) as total')
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->where('order_tasks.status', 'COMPLETADO');
+        $applyDateFilter($ordersByDisciplineQuery);
+        $ordersByDiscipline = $ordersByDisciplineQuery
+            ->groupBy('disciplines.id', 'disciplines.name')
+            ->orderBy('total', 'desc')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                $row->discipline_name => $row->total,
+            ])
+            ->toArray();
+
+        $completionByDepartmentData = OrderTask::selectRaw(
+                'disciplines.department_id, departments.name as department_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'COUNT(*) as total'
+            )
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->join('departments', 'disciplines.department_id', '=', 'departments.id')
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+            ->groupBy('disciplines.department_id', 'departments.name')
+            ->orderBy('departments.name')
+            ->get();
+
+        $completionByDepartment = $completionByDepartmentData
+            ->mapWithKeys(fn ($row) => [
+                $row->department_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+            ])
+            ->toArray();
+
+        $ordersByDepartmentCompletion = $completionByDepartment;
+
+        $completionByDisciplineData = OrderTask::selectRaw(
+                'disciplines.id as discipline_id, disciplines.name as discipline_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'COUNT(*) as total'
+            )
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
+            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+            ->groupBy('disciplines.id', 'disciplines.name')
+            ->orderBy('disciplines.name')
+            ->get();
+
+        $completionByDiscipline = $completionByDisciplineData
+            ->mapWithKeys(fn ($row) => [
+                $row->discipline_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+            ])
+            ->toArray();
+
+        $completedByPeriod = $completedTasks->groupBy($useWeeklyChart ? 'task_date' : 'month_number')
             ->map(fn ($rows) => $rows->sum('total'));
 
-        $currentMonth = $chartMonths[count($chartMonths) - 1];
-        $previousMonth = $chartMonths[count($chartMonths) - 2];
-        $currentMonthCompleted = $completedByMonth[$currentMonth] ?? 0;
-        $previousMonthCompleted = $completedByMonth[$previousMonth] ?? 0;
+        $currentPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 1]] ?? 0;
+        $previousPeriodCompleted = $completedByPeriod[$chartDays[count($chartDays) - 2]] ?? 0;
 
-        if ($previousMonthCompleted > 0) {
-            $completedPercentage = round((($currentMonthCompleted - $previousMonthCompleted) / $previousMonthCompleted) * 100, 1);
-        } elseif ($currentMonthCompleted > 0) {
+        if ($previousPeriodCompleted > 0) {
+            $completedPercentage = round((($currentPeriodCompleted - $previousPeriodCompleted) / $previousPeriodCompleted) * 100, 1);
+        } elseif ($currentPeriodCompleted > 0) {
             $completedPercentage = 100;
         } else {
             $completedPercentage = 0;
@@ -219,6 +515,25 @@ class StatsController extends Controller
 
         $completedCount = $completedTasks->sum('total');
         $departmentCount = count($departmentData);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'completedOrders' => $tasksByStatus['COMPLETADO'] ?? 0,
+                'pendingOrders' => $tasksByStatus['PENDIENTE'] ?? 0,
+                'reviewOrders' => $tasksByStatus['POR REVISION'] ?? 0,
+                'notCompletedOrders' => $tasksByStatus['NO COMPLETADO'] ?? 0,
+                'chartSeries' => $chartSeries,
+                'chartCategories' => $chartCategories,
+                'ordersByType' => $ordersByType,
+                'ordersByName' => $selectedDepartmentId ? $ordersByDiscipline : $ordersByDepartment,
+                'ordersByNameCompletion' => $selectedDepartmentId ? $completionByDiscipline : $ordersByDepartmentCompletion,
+                'ordersByNameLinks' => $selectedDepartmentId ? [] : $ordersByDepartmentLinks,
+                'ordersByDepartmentCompletion' => $ordersByDepartmentCompletion,
+                'completionByDepartment' => $completionByDepartment,
+                'completionByDiscipline' => $completionByDiscipline,
+                'generalCompletionPercentage' => $generalCompletionPercentage,
+            ]);
+        }
 
         return view('stats', compact(
             'totalOrders',
@@ -231,8 +546,68 @@ class StatsController extends Controller
             'completedCount',
             'departmentCount',
             'ordersByDepartment',
-            'completedPercentage'
+            'ordersByDepartmentLinks',
+            'ordersByDepartmentCompletion',
+            'ordersByDiscipline',
+            'completedPercentage',
+            'generalCompletionPercentage',
+            'completionByDepartment',
+            'completionByDiscipline',
+            'weekOptions',
+            'selectedWeekStart',
+            'selectedDepartmentId',
+            'selectedDisciplineId',
+            'departmentOptions',
+            'disciplineOptions',
+            'disciplinesByDepartment',
+            'allDisciplineOptions',
+            'conversionLabel'
         ));
+    }
+
+    private function getWeekStart(Carbon $date): Carbon
+    {
+        $weekday = $date->dayOfWeekIso;
+        if ($weekday >= 4) {
+            return $date->copy()->subDays($weekday - 4)->startOfDay();
+        }
+
+        return $date->copy()->subDays($weekday + 3)->startOfDay();
+    }
+
+    private function weekOptions(int $weeks = 8): array
+    {
+        $today = Carbon::now();
+        $currentWeekStart = $this->getWeekStart($today);
+
+        return collect(range(0, $weeks - 1))->map(function ($offset) use ($currentWeekStart) {
+            $start = $currentWeekStart->copy()->subWeeks($offset);
+            $end = $start->copy()->addDays(6);
+            $weekNumber = (int) $start->format('W');
+
+            return [
+                'value' => $start->toDateString(),
+                'start' => $start->toDateString(),
+                'end' => $end->toDateString(),
+                'label' => 'Semana ' . $weekNumber . ' — ' . $start->format('d/m') . ' - ' . $end->format('d/m'),
+            ];
+        })->all();
+    }
+
+    private function chartWeekDays(Carbon $weekStart): array
+    {
+        return collect(range(0, 6))
+            ->map(fn ($offset) => $weekStart->copy()->addDays($offset)->toDateString())
+            ->all();
+    }
+
+    private function chartWeekCategories(Carbon $weekStart): array
+    {
+        $labels = ['Jue', 'Vie', 'Sáb', 'Dom', 'Lun', 'Mar', 'Mié'];
+
+        return collect(range(0, 6))
+            ->map(fn ($offset) => $labels[$offset] . ' ' . $weekStart->copy()->addDays($offset)->format('d/m'))
+            ->all();
     }
 
     private function monthLabels(): array

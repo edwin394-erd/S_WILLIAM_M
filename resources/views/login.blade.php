@@ -7,8 +7,9 @@
         {{-- Formulario de Login --}}
         <div class="p-6 space-y-4 md:space-y-6 sm:p-8 w-full md:w-1/2 x-cloak">
             <div class="flex justify-center mb-6">
-                <x-pdvs-logo class="h-10"/>
+                <x-pdvs-logo class="h-15"/>
             </div>
+            <br>
             <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white text-center">
                 Acceso de Usuarios
             </h1>

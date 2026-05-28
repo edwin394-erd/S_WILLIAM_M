@@ -24,8 +24,12 @@ class User extends Authenticatable
         'email',
         'password',
         'department_id',
+        'discipline_id',
         'role',
+    ];
 
+    protected $appends = [
+        'discipline_names',
     ];
 
     /**
@@ -58,6 +62,22 @@ class User extends Authenticatable
     public function discipline(): BelongsTo
     {
         return $this->belongsTo(Discipline::class);
+    }
+
+    public function disciplines()
+    {
+        return $this->belongsToMany(Discipline::class, 'discipline_user', 'user_id', 'discipline_id');
+    }
+
+    public function getDisciplineNamesAttribute(): string
+    {
+        $names = $this->disciplines->pluck('name')->filter()->all();
+
+        if (empty($names) && $this->discipline) {
+            return $this->discipline->name;
+        }
+
+        return collect($names)->implode(', ');
     }
 
     public function isAdmin(): bool

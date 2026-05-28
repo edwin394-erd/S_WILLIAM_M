@@ -14,6 +14,24 @@ class EquipmentController extends Controller
         return view('equipments.index', compact('equipment'));
     }
 
+    public function create()
+    {
+        return view('equipments.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        Equipment::create([
+            'name' => $request->name,
+        ]);
+
+        return redirect()->route('admin.equipment.index')->with('success', 'Equipo creado correctamente.');
+    }
+
     public function edit($id)
     {
         $equip = Equipment::findOrFail($id);
@@ -27,6 +45,12 @@ class EquipmentController extends Controller
         $equip->update(['name' => $request->name]);
 
         return redirect()->route('admin.equipment.index')->with('success', 'Equipo actualizado correctamente.');
+    }
+
+    public function destroy($id)
+    {
+        Equipment::destroy($id);
+        return redirect()->route('admin.equipment.index')->with('success', 'Equipo eliminado exitosamente.');
     }
 
     public function tablePdf(Request $request)

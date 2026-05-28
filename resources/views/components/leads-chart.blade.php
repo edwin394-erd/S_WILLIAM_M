@@ -2,6 +2,7 @@
     'value' => '0',
     'label' => 'Leads generated per week',
     'percentage' => '0',
+    'percentageLabel' => 'Incremento Mensual',
     'moneySpent' => '$0',
     'conversion' => '0%',
     'series',
@@ -12,10 +13,11 @@
     'chartType' => 'bar',
     'chartHeight' => 220,
     'horizontal' => false,
+    'chartId' => null,
 ])
 
 @php 
-    $chartId = 'chart-' . Str::random(8); 
+    $chartId = $chartId ?? 'chart-' . Str::random(8); 
 @endphp
 
 <div {{ $attributes->merge(['class' => 'w-full bg-neutral-primary-soft border border-default rounded-3xl shadow-xs p-4 md:p-6']) }}>
@@ -37,7 +39,7 @@
   <div>
       <span class="{{ $badgeClasses }}">
         <svg class="w-4 h-4 me-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $arrowPath }}"/></svg>
-        Incremento Mensual: {{ $percentage }}%
+        {{ $percentageLabel }}: {{ $percentage }}%
       </span>
     </div>
   </div>
@@ -164,6 +166,9 @@
 
                 const chart = new ApexCharts(container, options);
                 chart.render();
+
+                window.leadsCharts = window.leadsCharts || {};
+                window.leadsCharts["{{ $chartId }}"] = chart;
             }
         };
 
