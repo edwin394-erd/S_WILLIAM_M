@@ -67,14 +67,14 @@
 
                         @if ($isAdminPlan)
                             <li class="pl-4">
-                                <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas Administrativas</a>
+                                <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas</a>
                             </li>
                             <li class="pl-4">
                                 <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
                             </li>
                         @elseif ($isSupervisor)
                             <li class="pl-4">
-                                <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas del Departamento</a>
+                                <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas</a>
                             </li>
                              <li class="pl-4">
                                 <a href="{{ route('supervisor.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
