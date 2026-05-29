@@ -61,9 +61,9 @@
                     $isSupervisor = $role === 'supervisor';
                 @endphp
 
-                <ul class="space-y-1">
+                <ul class="space-y-2">
                     @if (! in_array($role, ['tecnico']))
-                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mb-2 uppercase">Indicadores y Control</li>
+                        <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mb-2 uppercase">Indicadores</li>
 
                         @if ($isAdminPlan)
                             <li class="pl-4">
@@ -112,7 +112,7 @@
         <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak class="fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity"></div>
 
         <!-- Área de Contenido Principal -->
-        <main class="flex-1 bg-white p-4 md:p-6 overflow-y-auto custom-scrollbar">
+        <main class="flex-1 bg-white p-4 md:px-6 md:py-4 overflow-y-auto custom-scrollbar">
             @if (session()->has('success'))
                 <x-alert type="success" :message="session('success')" class="mb-4" />
             @endif

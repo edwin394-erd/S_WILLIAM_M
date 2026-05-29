@@ -183,7 +183,7 @@
     </div>
 
  {{-- Grid de Cards --}}
-<div class="overflow-y-auto max-h-[40vh] md:max-h-[50vh]">
+<div class="overflow-y-auto max-h-[40vh] md:max-h-[50vh] 2xl:max-h-[60vh]">
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <template x-for="record in pagedRecords" :key="record.id">
             <div class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow flex flex-col">
