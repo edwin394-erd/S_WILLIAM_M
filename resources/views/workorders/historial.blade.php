@@ -17,6 +17,11 @@
     :crear="false"
     :filtroFechas="true"
     :weekOptions="$weekOptions"
+    :departmentOptions="$departmentOptions"
+    :disciplineOptions="$disciplineOptions"
+    :dateFrom="$dateFrom ?? ''"
+    :dateTo="$dateTo ?? ''"
+    :weekFilter="$weekFilter ?? ''"
     :pdf="true"
 />
 

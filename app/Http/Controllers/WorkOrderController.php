@@ -12,6 +12,7 @@ use App\Models\WorkOrder;
 use App\Models\Installation;
 use App\Models\Equipment;
 use App\Models\WorkSheet;
+use App\Models\Department;
 use App\Models\Discipline;
 use App\Models\OrderTask;
 use App\Models\OrderTaskEvidence;
@@ -517,6 +518,27 @@ public function reportar(Request $request, $id)
     public function historial(Request $request)
     {
         $status = $request->query('status');
+        $dateFrom = $request->query('dateFrom');
+        $dateTo = $request->query('dateTo');
+        $weekStartQuery = $request->query('week_start');
+        $weekFilter = $weekStartQuery;
+
+        if ($weekStartQuery && (!$dateFrom || !$dateTo)) {
+            try {
+                $weekStart = Carbon::parse($weekStartQuery, 'America/Caracas')->startOfDay();
+                $dayOfWeek = (int) $weekStart->format('N');
+                if ($dayOfWeek >= 4) {
+                    $weekStart = $weekStart->copy()->subDays($dayOfWeek - 4);
+                } else {
+                    $weekStart = $weekStart->copy()->subDays($dayOfWeek + 3);
+                }
+                $weekEnd = $weekStart->copy()->addDays(6);
+                $dateFrom = $dateFrom ?: $weekStart->toDateString();
+                $dateTo = $dateTo ?: $weekEnd->toDateString();
+            } catch (\Exception $e) {
+                $weekFilter = null;
+            }
+        }
 
         $query = WorkOrder::with([
                 'tasks' => function ($taskQuery) {
@@ -539,6 +561,32 @@ public function reportar(Request $request, $id)
                 });
             }
         }
+
+        if ($request->filled('department_id')) {
+            $query->whereHas('workSheet', function ($sheetQuery) use ($request) {
+                $sheetQuery->where('department_id', $request->query('department_id'));
+            });
+        }
+
+        if ($request->filled('discipline_id')) {
+            $query->whereHas('tasks', function ($taskQuery) use ($request) {
+                $taskQuery->where('discipline_id', $request->query('discipline_id'));
+            });
+        }
+
+        if ($dateFrom || $dateTo) {
+            $query->whereHas('tasks', function ($taskQuery) use ($dateFrom, $dateTo) {
+                if ($dateFrom) {
+                    $taskQuery->whereDate('date', '>=', $dateFrom);
+                }
+                if ($dateTo) {
+                    $taskQuery->whereDate('date', '<=', $dateTo);
+                }
+            });
+        }
+
+        $departments = Department::orderBy('name')->pluck('name', 'id')->toArray();
+        $disciplines = Discipline::orderBy('name')->pluck('name', 'id')->toArray();
 
         $workOrders = $query->get();
 
@@ -572,7 +620,12 @@ public function reportar(Request $request, $id)
         return view('workorders.historial')
             ->with('workOrders', $workOrders)
             ->with('departmentName', $dapartmentName)
-            ->with('weekOptions', $weekOptions);
+            ->with('weekOptions', $weekOptions)
+            ->with('departmentOptions', $departments)
+            ->with('disciplineOptions', $disciplines)
+            ->with('dateFrom', $dateFrom)
+            ->with('dateTo', $dateTo)
+            ->with('weekFilter', $weekFilter);
     }
 
     public function historialPdf(Request $request)
@@ -601,6 +654,18 @@ public function reportar(Request $request, $id)
                     $q->where('department_id', $deptId);
                 });
             }
+        }
+
+        if ($request->filled('department_id')) {
+            $query->whereHas('workSheet', function ($sheetQuery) use ($request) {
+                $sheetQuery->where('department_id', $request->query('department_id'));
+            });
+        }
+
+        if ($request->filled('discipline_id')) {
+            $query->whereHas('tasks', function ($taskQuery) use ($request) {
+                $taskQuery->where('discipline_id', $request->query('discipline_id'));
+            });
         }
 
         if ($status && $status !== 'ALL') {
@@ -636,7 +701,18 @@ public function reportar(Request $request, $id)
 
         $workOrders = $query->get();
 
-        $pdf = Pdf::loadView('workorders.pdf', compact('workOrders'))
+        $departmentNameFilter = null;
+        $disciplineNameFilter = null;
+
+        if ($request->filled('department_id')) {
+            $departmentNameFilter = Department::where('id', $request->query('department_id'))->value('name');
+        }
+
+        if ($request->filled('discipline_id')) {
+            $disciplineNameFilter = Discipline::where('id', $request->query('discipline_id'))->value('name');
+        }
+
+        $pdf = Pdf::loadView('workorders.pdf', compact('workOrders', 'status', 'dateFrom', 'dateTo', 'search', 'departmentNameFilter', 'disciplineNameFilter'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->stream('historial.pdf');

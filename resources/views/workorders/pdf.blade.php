@@ -65,8 +65,12 @@
         $dateFrom = request()->query('dateFrom');
         $dateTo = request()->query('dateTo');
         $search = request()->query('search');
+        $departmentNameFilter = $departmentNameFilter ?? null;
+        $disciplineNameFilter = $disciplineNameFilter ?? null;
         $parts = [];
         if ($statusFilter) $parts[] = 'Estado: ' . $statusFilter;
+        if ($departmentNameFilter) $parts[] = 'Departamento: ' . strtoupper($departmentNameFilter);
+        if ($disciplineNameFilter) $parts[] = 'Disciplina: ' . strtoupper($disciplineNameFilter);
         if ($dateFrom || $dateTo) {
             $df = $dateFrom ? \Carbon\Carbon::parse($dateFrom)->format('d/m/Y') : '...';
             $dt = $dateTo ? \Carbon\Carbon::parse($dateTo)->format('d/m/Y') : '...';

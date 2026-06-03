@@ -9,8 +9,9 @@
     'nullableLabel' => null,
 ])
 
-<div {{ $attributes->merge(['class' => 'relative']) }}
+<div {{ $attributes->merge(['class' => 'relative overflow-visible']) }}
      x-data="{ 
+        uid: Math.random().toString(36).substring(2, 10),
         open: false,
         search: '',
         selected: @js($selected),
@@ -61,7 +62,8 @@
      }"
      x-modelable="selected"
      x-effect="if ($el.options !== undefined) options = $el.options"
-     @click.away="open = false">
+     @click.away="open = false"
+     @x-select-opened.window="if ($event.detail !== uid) open = false">
 
     @if($label)
         <label class="block mb-2.5 text-sm font-medium text-heading">{{ $label }}</label>
@@ -70,7 +72,7 @@
     <input type="hidden" name="{{ $name }}" :value="selected">
 
     {{-- Botón / Trigger --}}
-    <div x-ref="trigger" @click="open = !open; if(open) { setTimeout(() => computeDirection(), 50) }" 
+    <div x-ref="trigger" @click="open = !open; if(open) { window.dispatchEvent(new CustomEvent('x-select-opened', { detail: uid })); setTimeout(() => computeDirection(), 50) }" 
          class="bg-neutral-secondary-medium border border-default-medium text-heading text-sm rounded-base w-full px-3 py-2.5 shadow-xs cursor-pointer flex justify-between items-center transition-all hover:border-brand">
         <span x-text="displayLabel()" class="truncate"></span>
         <svg class="h-4 w-4 flex-shrink-0 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -71,6 +71,7 @@ Route::middleware(['auth', CheckPlanAdmin::class])->group(function () {
 
 Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(function () {
     Route::get('/stats', [StatsController::class, 'supervisorStats'])->name('supervisor.stats');
+    Route::get('/stats/pdf', [StatsController::class, 'supervisorStatsPdf'])->name('supervisor.stats.pdf');
     Route::get('/worksheets', [WorkSheetController::class, 'supervisorWorksheets'])->name('supervisor.worksheets');
     Route::get('/worksheets/{worksheet}', [WorkSheetController::class, 'show'])->name('supervisor.worksheets.show');
     Route::get('/worksheets/{worksheet}/pdf', [WorkSheetController::class, 'generatePdf'])->name('supervisor.worksheets.pdf');
@@ -88,6 +89,7 @@ Route::middleware(['auth', CheckSup::class])->prefix('supervisor')->group(functi
 
 Route::middleware(['auth', CheckPlanAdmin::class])->prefix('admin')->group(function () {
     Route::get('/stats', [StatsController::class, 'adminStats'])->name('admin.stats');
+    Route::get('/stats/pdf', [StatsController::class, 'adminStatsPdf'])->name('admin.stats.pdf');
 
     Route::resource('departments', DepartmentController::class)->names('admin.departments');
     Route::post('departments/table/pdf', [DepartmentController::class, 'tablePdf'])->name('admin.departments.pdf');

@@ -2,18 +2,18 @@
 
 @section('content')
 <section class="dark:bg-gray-900 flex items-center justify-center py-10 x-cloak">
-    <div class="flex flex-col md:flex-row bg-white rounded-lg shadow-md overflow-hidden w-full max-w-4xl justify-center x-cloak">
+    <div class="flex flex-col md:flex-row bg-white rounded-lg shadow-md overflow-hidden w-full max-w-4xl justify-center x-cloak h-[500px]">
 
         {{-- Formulario de Login --}}
         <div class="p-6 space-y-4 md:space-y-6 sm:p-8 w-full md:w-1/2 x-cloak">
             <div class="flex justify-center mb-6">
-                <x-pdvs-logo class="h-15"/>
+                <x-pdvs-logo class="h-15 lg:h-20"/>
             </div>
             <br>
             <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white text-center">
                 Acceso de Usuarios
             </h1>
-            
+            <hr class="my-4 border-gray-300 dark:border-gray-600"><br>
             <form class="space-y-4 md:space-y-6" action="{{ route('login.submit') }}" method="POST">
                 @csrf
                 <div>

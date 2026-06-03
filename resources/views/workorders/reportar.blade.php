@@ -64,9 +64,8 @@
             </style> --}}
 
             <div class="flex justify-end gap-3">
-                <a href="{{ auth()->user()->role === 'supervisor' ? route('supervisor.workorders.index') : route('tecnico.actividades', auth()->user()->discipline_id) }}" class="rounded bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">Cancelar</a>
+                 <a href="{{ auth()->user()->role === 'supervisor' ? url()->previous() : route('tecnico.actividades', auth()->user()->discipline_id) }}" class="rounded bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">Cancelar</a>
                 <button id="submit-button" type="submit" class="rounded bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-500">Enviar evidencias</button>
-            </div>
         </form>
     </div>
 

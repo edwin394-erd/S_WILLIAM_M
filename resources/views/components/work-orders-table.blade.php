@@ -9,6 +9,11 @@
     'reportar' => false,
     'pdf' => false,
     'disciplineId' => null,
+    'departmentOptions' => [],
+    'disciplineOptions' => [],
+    'dateFrom' => '',
+    'dateTo' => '',
+    'weekFilter' => '',
     'extraplan' => false,
     'filtroFechas' => false,
     'weekOptions' => [],
@@ -58,10 +63,14 @@
         observationInput: '',
         supervisorDisciplineIds: @js(auth()->user()->role === 'supervisor' ? auth()->user()->disciplines->pluck('id')->toArray() : []),
         statusFilter: @js(request()->query('status', 'ALL')),
-        weekFilter: '',
+        departmentFilter: @js(request()->query('department_id', '')),
+        disciplineFilter: @js(request()->query('discipline_id', '')),
+        departments: @js($departmentOptions),
+        disciplines: @js($disciplineOptions),
+        weekFilter: '{{ $weekFilter ?? '' }}',
         weeks: @js($weekOptions),
-        dateFrom: '',
-        dateTo: '',
+        dateFrom: '{{ $dateFrom ?? '' }}',
+        dateTo: '{{ $dateTo ?? '' }}',
         setWeek(value) {
             this.weekFilter = value;
             if (!value) {
@@ -79,6 +88,8 @@
         getPdfUrl() {
             const params = new URLSearchParams();
             if (this.statusFilter && this.statusFilter !== 'ALL') params.set('status', this.statusFilter);
+            if (this.departmentFilter) params.set('department_id', this.departmentFilter);
+            if (this.disciplineFilter) params.set('discipline_id', this.disciplineFilter);
             if (this.dateFrom) params.set('dateFrom', this.dateFrom);
             if (this.dateTo) params.set('dateTo', this.dateTo);
             if (this.search) params.set('search', this.search);
@@ -96,6 +107,8 @@
 
                 const status = r.tasks?.[0]?.status ?? '';
                 const matchesStatus = this.statusFilter === 'ALL' || this.statusFilter === status;
+                const matchesDepartment = !this.departmentFilter || String(r.workSheet?.department_id ?? r.work_sheet?.department_id ?? '') === String(this.departmentFilter);
+                const matchesDiscipline = !this.disciplineFilter || r.tasks?.some(task => String(task.discipline_id) === String(this.disciplineFilter));
 
                 let matchesDateRange = true;
                 if (this.dateFrom && this.dateTo) {
@@ -111,7 +124,7 @@
                     }) ?? false;
                 }
 
-                return matchesSearch && matchesStatus && matchesDateRange;
+                return matchesSearch && matchesStatus && matchesDepartment && matchesDiscipline && matchesDateRange;
             });
         },
         get pagedRecords() {
@@ -149,14 +162,13 @@
     {{-- Buscador y Cabecera fija --}}
     <div class="sticky top-0 z-20 bg-white py-3">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-1">
-            <div class="grid gap-3 w-full sm:grid-cols-2 xl:grid-cols-4">
-                <div class="sm:col-span-1">
+            <div class="grid gap-3 w-full sm:grid-cols-2 xl:grid-cols-6">
+                <div class="sm:col-span-2 xl:col-span-2">
                     <input type="text" x-model="search" @input="page = 1"
                         placeholder="Buscar por ODM, Acción o Instalación..." 
                         class="block w-full px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 shadow-sm">
                 </div>
-              
-                <div class="sm:col-span-1">
+                <div class="sm:col-span-1 xl:col-span-1">
                     <x-select
                         name="statusFilter"
                         :options="[
@@ -172,12 +184,42 @@
                         @change="statusFilter = $event.detail; page = 1"
                     />
                 </div>
+                @if(!empty($departmentOptions))
+                <div class="sm:col-span-1 xl:col-span-1">
+                    <x-select
+                        name="department_id"
+                        :options="$departmentOptions"
+                        selected="{{ request()->query('department_id', '') }}"
+                        placeholder="Filtrar departamento"
+                        class="w-full"
+                        :nullable="true"
+                        :buscable="true"
+                        nullableLabel="Todos los departamentos"
+                        @change="departmentFilter = $event.detail; page = 1"
+                    />
+                </div>
+                @endif
+                @if(!empty($disciplineOptions))
+                <div class="sm:col-span-1 xl:col-span-1">
+                    <x-select
+                        name="discipline_id"
+                        :options="$disciplineOptions"
+                        selected="{{ request()->query('discipline_id', '') }}"
+                        placeholder="Filtrar disciplina"
+                        class="w-full"
+                        :nullable="true"
+                        :buscable="true"
+                        nullableLabel="Todas las disciplinas"
+                        @change="disciplineFilter = $event.detail; page = 1"
+                    />
+                </div>
+                @endif
                 @if($filtroFechas)
-                <div class="sm:col-span-1">
+                <div class="sm:col-span-1 xl:col-span-1">
                     <x-select
                         name="weekFilter"
                         :options="$weekOptions"
-                        selected="{{ old('weekFilter', '') }}"
+                        selected="{{ $weekFilter ?? '' }}"
                         placeholder="Filtrar por semana"
                         class="w-full"
                         :nullable="true"
