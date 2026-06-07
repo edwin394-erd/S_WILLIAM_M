@@ -15,6 +15,8 @@ class StatsController extends Controller
 {
     public function supervisorStats(Request $request)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $departmentId = $request->query('department_id') ?: Auth::user()->department_id;
         $departmentName = Department::find($departmentId)->name ?? 'Sin departamento';
         $selectedDepartmentId = $departmentId;
@@ -263,6 +265,8 @@ class StatsController extends Controller
 
     public function adminStats(Request $request)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $weekOptions = $this->weekOptions();
         $selectedWeekStart = $request->query('week_start');
         $selectedDepartmentId = $request->query('department_id');
@@ -338,6 +342,7 @@ class StatsController extends Controller
         }
 
         $extraPlanOrdersQuery = WorkOrder::where('is_extraplan', true);
+        $planOrdersQuery = WorkOrder::where('is_extraplan', false);
         if ($weekStart || $selectedDepartmentId || $selectedDisciplineId) {
             $extraPlanOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
                 ->where('work_orders.is_extraplan', true)
@@ -345,10 +350,55 @@ class StatsController extends Controller
                 ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
                     ->where('disciplines.department_id', $selectedDepartmentId))
                 ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+
+            $planOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+                ->where('work_orders.is_extraplan', false)
+                ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+                ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                    ->where('disciplines.department_id', $selectedDepartmentId))
+                ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+
             $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+            $planOrders = $planOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
         } else {
             $extraPlanOrders = $extraPlanOrdersQuery->count();
+            $planOrders = $planOrdersQuery->count();
         }
+
+        $maintenanceTypeTotals = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+            ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+                ->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($maintenanceTypeTotals);
+        $maintenanceTypeTotals = $maintenanceTypeTotals
+            ->groupBy('work_orders.type')
+            ->orderBy('work_orders.type')
+            ->pluck('total', 'type')
+            ->toArray();
+
+        $maintenanceTypeReport = collect(['CORRECTIVO', 'PREVENTIVO', 'PREDICTIVO', 'DETECTIVO'])
+            ->map(fn ($type) => [
+                'type' => $type,
+                'label' => $type === 'DETECTIVO' ? 'MDC' : ucfirst(strtolower($type)),
+                'total' => $maintenanceTypeTotals[$type] ?? 0,
+            ])
+            ->mapWithKeys(fn ($row) => [$row['type'] => $row])
+            ->toArray();
+
+        $maintenanceTotal = array_sum(array_column($maintenanceTypeReport, 'total'));
+        foreach ($maintenanceTypeReport as &$typeRow) {
+            $typeRow['percent'] = $maintenanceTotal > 0 ? round(($typeRow['total'] / $maintenanceTotal) * 100, 1) : 0;
+        }
+        unset($typeRow);
+
+        $planVsExtra = [
+            'plan' => $planOrders,
+            'extra' => $extraPlanOrders,
+            'total' => $planOrders + $extraPlanOrders,
+        ];
+        $planVsExtra['plan_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['plan'] / $planVsExtra['total']) * 100, 1) : 0;
+        $planVsExtra['extra_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['extra'] / $planVsExtra['total']) * 100, 1) : 0;
 
         $tasksByStatusQuery = OrderTask::query()
             ->when($selectedDepartmentId, fn ($q) => $q->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
@@ -585,6 +635,8 @@ class StatsController extends Controller
 
     private function buildAdminStatsPdfData(Request $request): array
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $weekOptions = $this->weekOptions();
         $selectedWeekStart = $request->query('week_start');
         $selectedDepartmentId = $request->query('department_id');
@@ -688,6 +740,49 @@ class StatsController extends Controller
         $applyDateFilter($extraPlanOrdersQuery);
         $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
 
+        $planOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->where('work_orders.is_extraplan', false)
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($planOrdersQuery);
+        $planOrders = $planOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $maintenanceTypeTotals = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+            ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($maintenanceTypeTotals);
+        $maintenanceTypeTotals = $maintenanceTypeTotals
+            ->groupBy('work_orders.type')
+            ->orderBy('work_orders.type')
+            ->pluck('total', 'type')
+            ->toArray();
+
+        $maintenanceTypeReport = collect(['CORRECTIVO', 'PREVENTIVO', 'PREDICTIVO', 'DETECTIVO'])
+            ->map(fn ($type) => [
+                'type' => $type,
+                'label' => $type === 'DETECTIVO' ? 'MDC' : ucfirst(strtolower($type)),
+                'total' => $maintenanceTypeTotals[$type] ?? 0,
+            ])
+            ->mapWithKeys(fn ($row) => [$row['type'] => $row])
+            ->toArray();
+
+        $maintenanceTotal = array_sum(array_column($maintenanceTypeReport, 'total'));
+        foreach ($maintenanceTypeReport as &$typeRow) {
+            $typeRow['percent'] = $maintenanceTotal > 0 ? round(($typeRow['total'] / $maintenanceTotal) * 100, 1) : 0;
+        }
+        unset($typeRow);
+
+        $planVsExtra = [
+            'plan' => $planOrders,
+            'extra' => $extraPlanOrders,
+            'total' => $planOrders + $extraPlanOrders,
+        ];
+        $planVsExtra['plan_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['plan'] / $planVsExtra['total']) * 100, 1) : 0;
+        $planVsExtra['extra_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['extra'] / $planVsExtra['total']) * 100, 1) : 0;
+
         $tasksByStatusQuery = OrderTask::selectRaw('status, count(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
@@ -753,75 +848,101 @@ class StatsController extends Controller
             ];
         }
 
-        $ordersByDepartmentQuery = OrderTask::selectRaw('disciplines.department_id, count(*) as total')
-            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->where('order_tasks.status', 'COMPLETADO');
-        $applyDateFilter($ordersByDepartmentQuery);
-
-        $ordersByDepartmentRows = $ordersByDepartmentQuery
-            ->groupBy('disciplines.department_id')
-            ->orderBy('total', 'desc')
-            ->get();
-
-        $ordersByDepartment = $ordersByDepartmentRows
-            ->mapWithKeys(fn ($row) => [
-                $departmentNames[$row->department_id] ?? 'Sin departamento' => $row->total,
-            ])
-            ->toArray();
-
-        $ordersByDepartmentCompletion = OrderTask::selectRaw('disciplines.department_id, departments.name as department_name, '
+        $ordersByDepartmentStatusQuery = OrderTask::selectRaw(
+                'disciplines.department_id, departments.name as department_name, '
                 . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
-                . 'COUNT(*) as total')
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
+                . 'COUNT(*) as total'
+            )
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->join('departments', 'disciplines.department_id', '=', 'departments.id')
             ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($ordersByDepartmentStatusQuery);
+
+        $ordersByDepartmentStatusRows = $ordersByDepartmentStatusQuery
             ->groupBy('disciplines.department_id', 'departments.name')
             ->orderBy('departments.name')
-            ->get()
+            ->get();
+
+        $ordersByDepartmentStatus = $ordersByDepartmentStatusRows
             ->mapWithKeys(fn ($row) => [
-                $row->department_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                $row->department_name => [
+                    'total' => $row->total,
+                    'completed' => $row->completed,
+                    'pending' => $row->pending,
+                    'review' => $row->review,
+                    'not_completed' => $row->not_completed,
+                    'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                ],
+            ])
+            ->toArray();
+
+        $ordersByDepartment = $ordersByDepartmentStatusRows
+            ->mapWithKeys(fn ($row) => [
+                $row->department_name => $row->total,
+            ])
+            ->toArray();
+
+        $ordersByDepartmentCompletion = collect($ordersByDepartmentStatus)
+            ->mapWithKeys(fn ($stats, $name) => [
+                $name => $stats['completion'],
             ])
             ->toArray();
 
         $completionByDepartment = $ordersByDepartmentCompletion;
 
-        $ordersByDisciplineQuery = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, count(*) as total')
+        $ordersByDisciplineStatusQuery = OrderTask::selectRaw(
+                'disciplines.id as discipline_id, disciplines.name as discipline_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
+                . 'COUNT(*) as total'
+            )
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->where('order_tasks.status', 'COMPLETADO');
-        $applyDateFilter($ordersByDisciplineQuery);
-        $ordersByDiscipline = $ordersByDisciplineQuery
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($ordersByDisciplineStatusQuery);
+
+        $ordersByDisciplineStatusRows = $ordersByDisciplineStatusQuery
             ->groupBy('disciplines.id', 'disciplines.name')
             ->orderBy('total', 'desc')
-            ->get()
+            ->get();
+
+        $ordersByDisciplineStatus = $ordersByDisciplineStatusRows
+            ->mapWithKeys(fn ($row) => [
+                $row->discipline_name => [
+                    'total' => $row->total,
+                    'completed' => $row->completed,
+                    'pending' => $row->pending,
+                    'review' => $row->review,
+                    'not_completed' => $row->not_completed,
+                    'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                ],
+            ])
+            ->toArray();
+
+        $ordersByDiscipline = $ordersByDisciplineStatusRows
             ->mapWithKeys(fn ($row) => [
                 $row->discipline_name => $row->total,
             ])
             ->toArray();
 
-        $completionByDiscipline = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, '
-                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
-                . 'COUNT(*) as total')
-            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->when($selectedDepartmentId, fn ($q) => $q->where('disciplines.department_id', $selectedDepartmentId))
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
-            ->groupBy('disciplines.id', 'disciplines.name')
-            ->orderBy('disciplines.name')
-            ->get()
-            ->mapWithKeys(fn ($row) => [
-                $row->discipline_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+        $completionByDiscipline = collect($ordersByDisciplineStatus)
+            ->mapWithKeys(fn ($stats, $name) => [
+                $name => $stats['completion'],
             ])
             ->toArray();
 
         $departmentDisciplineReportQuery = Discipline::selectRaw(
                 'disciplines.department_id, departments.name as department_name, disciplines.id as discipline_id, disciplines.name as discipline_name, '
                 . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
                 . 'COUNT(order_tasks.id) as total'
             )
             ->join('departments', 'disciplines.department_id', '=', 'departments.id')
@@ -839,7 +960,11 @@ class StatsController extends Controller
         foreach ($departmentDisciplineReportRows as $row) {
             $departmentDisciplineReport[$row->department_name][] = [
                 'discipline_name' => $row->discipline_name,
+                'total' => $row->total,
                 'completed' => $row->completed,
+                'pending' => $row->pending,
+                'review' => $row->review,
+                'not_completed' => $row->not_completed,
                 'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
             ];
         }
@@ -862,11 +987,15 @@ class StatsController extends Controller
             'disciplinesByDepartment' => $disciplinesByDepartment,
             'allDisciplineOptions' => $allDisciplineOptions,
             'ordersByType' => $ordersByType,
+            'maintenanceTypeReport' => $maintenanceTypeReport,
+            'planVsExtra' => $planVsExtra,
             'ordersByName' => $ordersByName,
             'ordersByNameCompletion' => $ordersByNameCompletion,
             'departmentDisciplineReport' => $departmentDisciplineReport,
             'ordersByDepartment' => $ordersByDepartment,
             'ordersByDepartmentCompletion' => $ordersByDepartmentCompletion,
+            'ordersByDepartmentStatus' => $ordersByDepartmentStatus,
+            'ordersByDisciplineStatus' => $ordersByDisciplineStatus,
             'chartSeries' => $chartSeries,
             'chartCategories' => $chartCategories,
             'tasksByStatus' => $tasksByStatus,
@@ -879,6 +1008,8 @@ class StatsController extends Controller
 
     private function buildSupervisorStatsPdfData(Request $request): array
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $departmentId = Auth::user()->department_id;
         $departmentName = Department::where('id', $departmentId)->value('name') ?: 'Sin departamento';
 
@@ -895,6 +1026,10 @@ class StatsController extends Controller
             ->pluck('name', 'id')
             ->toArray();
         $allDisciplineOptions = $disciplineOptions;
+        $departmentOptions = Department::where('id', $departmentId)->pluck('name', 'id')->toArray();
+        $disciplinesByDepartment = [
+            $departmentId => $disciplineOptions,
+        ];
 
         if ($selectedWeekStart) {
             try {
@@ -968,6 +1103,49 @@ class StatsController extends Controller
             ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
         $applyDateFilter($extraPlanOrdersQuery);
         $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $planOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->where('work_orders.is_extraplan', false)
+            ->where('disciplines.department_id', $departmentId)
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($planOrdersQuery);
+        $planOrders = $planOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $maintenanceTypeTotals = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+            ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->where('disciplines.department_id', $departmentId)
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($maintenanceTypeTotals);
+        $maintenanceTypeTotals = $maintenanceTypeTotals
+            ->groupBy('work_orders.type')
+            ->orderBy('work_orders.type')
+            ->pluck('total', 'type')
+            ->toArray();
+
+        $maintenanceTypeReport = collect(['CORRECTIVO', 'PREVENTIVO', 'PREDICTIVO', 'DETECTIVO'])
+            ->map(fn ($type) => [
+                'type' => $type,
+                'label' => $type === 'DETECTIVO' ? 'MDC' : ucfirst(strtolower($type)),
+                'total' => $maintenanceTypeTotals[$type] ?? 0,
+            ])
+            ->mapWithKeys(fn ($row) => [$row['type'] => $row])
+            ->toArray();
+
+        $maintenanceTotal = array_sum(array_column($maintenanceTypeReport, 'total'));
+        foreach ($maintenanceTypeReport as &$typeRow) {
+            $typeRow['percent'] = $maintenanceTotal > 0 ? round(($typeRow['total'] / $maintenanceTotal) * 100, 1) : 0;
+        }
+        unset($typeRow);
+
+        $planVsExtra = [
+            'plan' => $planOrders,
+            'extra' => $extraPlanOrders,
+            'total' => $planOrders + $extraPlanOrders,
+        ];
+        $planVsExtra['plan_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['plan'] / $planVsExtra['total']) * 100, 1) : 0;
+        $planVsExtra['extra_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['extra'] / $planVsExtra['total']) * 100, 1) : 0;
 
         $tasksByStatusQuery = OrderTask::selectRaw('status, count(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
@@ -1051,6 +1229,9 @@ class StatsController extends Controller
 
         $completionByDiscipline = OrderTask::selectRaw('disciplines.id as discipline_id, disciplines.name as discipline_name, '
                 . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
                 . 'COUNT(*) as total')
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
             ->where('disciplines.department_id', $departmentId)
@@ -1058,46 +1239,77 @@ class StatsController extends Controller
             ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
             ->groupBy('disciplines.id', 'disciplines.name')
             ->orderBy('disciplines.name')
-            ->get()
+            ->get();
+
+        $ordersByDisciplineStatus = $completionByDiscipline
             ->mapWithKeys(fn ($row) => [
-                $row->discipline_name => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                $row->discipline_name => [
+                    'total' => $row->total,
+                    'completed' => $row->completed,
+                    'pending' => $row->pending,
+                    'review' => $row->review,
+                    'not_completed' => $row->not_completed,
+                    'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                ],
             ])
             ->toArray();
 
-        $ordersByDepartmentQuery = OrderTask::selectRaw('disciplines.department_id, count(*) as total')
+        $completionByDiscipline = collect($ordersByDisciplineStatus)
+            ->mapWithKeys(fn ($stats, $name) => [
+                $name => $stats['completion'],
+            ])
+            ->toArray();
+
+        $ordersByDepartmentStatusQuery = OrderTask::selectRaw(
+                'disciplines.department_id, departments.name as department_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
+                . 'COUNT(*) as total'
+            )
             ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->join('departments', 'disciplines.department_id', '=', 'departments.id')
             ->where('disciplines.department_id', $departmentId)
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->where('order_tasks.status', 'COMPLETADO');
-        $applyDateFilter($ordersByDepartmentQuery);
-        $ordersByDepartment = $ordersByDepartmentQuery
-            ->groupBy('disciplines.department_id')
-            ->orderBy('total', 'desc')
-            ->get()
+            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId));
+        $applyDateFilter($ordersByDepartmentStatusQuery);
+
+        $ordersByDepartmentStatusRows = $ordersByDepartmentStatusQuery
+            ->groupBy('disciplines.department_id', 'departments.name')
+            ->orderBy('departments.name')
+            ->get();
+
+        $ordersByDepartmentStatus = $ordersByDepartmentStatusRows
+            ->mapWithKeys(fn ($row) => [
+                $row->department_name => [
+                    'total' => $row->total,
+                    'completed' => $row->completed,
+                    'pending' => $row->pending,
+                    'review' => $row->review,
+                    'not_completed' => $row->not_completed,
+                    'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+                ],
+            ])
+            ->toArray();
+
+        $ordersByDepartment = $ordersByDepartmentStatusRows
             ->mapWithKeys(fn ($row) => [
                 $departmentName => $row->total,
             ])
             ->toArray();
 
-        $ordersByDepartmentCompletion = OrderTask::selectRaw('disciplines.department_id, departments.name as department_name, '
-                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
-                . 'COUNT(*) as total')
-            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
-            ->join('departments', 'disciplines.department_id', '=', 'departments.id')
-            ->where('disciplines.department_id', $departmentId)
-            ->when($selectedDisciplineId, fn ($q) => $q->where('order_tasks.discipline_id', $selectedDisciplineId))
-            ->when($weekStart, fn ($q) => $q->whereBetween('order_tasks.date', [$weekStart->toDateString(), $weekEnd->toDateString()]))
-            ->groupBy('disciplines.department_id', 'departments.name')
-            ->orderBy('departments.name')
-            ->get()
-            ->mapWithKeys(fn ($row) => [
-                $departmentName => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
+        $ordersByDepartmentCompletion = collect($ordersByDepartmentStatus)
+            ->mapWithKeys(fn ($stats, $name) => [
+                $name => $stats['completion'],
             ])
             ->toArray();
 
         $departmentDisciplineReportQuery = Discipline::selectRaw(
                 'disciplines.department_id, departments.name as department_name, disciplines.id as discipline_id, disciplines.name as discipline_name, '
                 . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'SUM(CASE WHEN order_tasks.status = "PENDIENTE" THEN 1 ELSE 0 END) as pending, '
+                . 'SUM(CASE WHEN order_tasks.status = "POR REVISION" THEN 1 ELSE 0 END) as review, '
+                . 'SUM(CASE WHEN order_tasks.status = "NO COMPLETADO" THEN 1 ELSE 0 END) as not_completed, '
                 . 'COUNT(order_tasks.id) as total'
             )
             ->join('departments', 'disciplines.department_id', '=', 'departments.id')
@@ -1115,7 +1327,11 @@ class StatsController extends Controller
         foreach ($departmentDisciplineReportRows as $row) {
             $departmentDisciplineReport[$row->department_name][] = [
                 'discipline_name' => $row->discipline_name,
+                'total' => $row->total,
                 'completed' => $row->completed,
+                'pending' => $row->pending,
+                'review' => $row->review,
+                'not_completed' => $row->not_completed,
                 'completion' => $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0,
             ];
         }
@@ -1138,8 +1354,12 @@ class StatsController extends Controller
             'disciplinesByDepartment' => [],
             'allDisciplineOptions' => $allDisciplineOptions,
             'ordersByType' => $ordersByType,
-            'ordersByDepartment' => [$departmentName => $tasksByStatus['COMPLETADO'] ?? 0],
-            'ordersByDepartmentCompletion' => [$departmentName => $totalTasks > 0 ? round((($tasksByStatus['COMPLETADO'] ?? 0) / $totalTasks) * 100, 1) : 0],
+            'maintenanceTypeReport' => $maintenanceTypeReport,
+            'planVsExtra' => $planVsExtra,
+            'ordersByDepartment' => $ordersByDepartment,
+            'ordersByDepartmentCompletion' => $ordersByDepartmentCompletion,
+            'ordersByDepartmentStatus' => $ordersByDepartmentStatus,
+            'ordersByDisciplineStatus' => $ordersByDisciplineStatus,
             'ordersByName' => $ordersByName,
             'ordersByNameCompletion' => $ordersByNameCompletion,
             'departmentDisciplineReport' => $departmentDisciplineReport,

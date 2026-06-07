@@ -53,13 +53,17 @@
         editUrlTemplate: '{{ $editUrl }}',
         deleteUrlTemplate: '{{ $deleteUrl }}',
         reportUrlTemplate: '{{ $reportUrl }}',
+        reassignUrlTemplate: '{{ route('workorders.reassign', ['work_order' => $dummyWorkOrderId]) }}',
         createRoute: '{{ $createRoute }}',
         disciplineId: {{ $disciplineId ?? 'null' }},
         authRole: '{{ auth()->user()->role }}',
         showReportModal: false,
+        showReassignModal: false,
         showExtraplanWarning: false,
         reportOrder: null,
+        reassignOrder: null,
         reportTask: null,
+        reassignTarget: 'current',
         observationInput: '',
         supervisorDisciplineIds: @js(auth()->user()->role === 'supervisor' ? auth()->user()->disciplines->pluck('id')->toArray() : []),
         statusFilter: @js(request()->query('status', 'ALL')),
@@ -155,6 +159,17 @@
             return this.reportUrlTemplate
                 .replace('{{ $dummyDisciplineId }}', selectedDisciplineId)
                 .replace('{{ $dummyWorkOrderId }}', workOrderId);
+        },
+        getReassignUrl(workOrderId) {
+            return this.reassignUrlTemplate.replace('{{ $dummyWorkOrderId }}', workOrderId);
+        },
+        openReassignModal(order) {
+            this.reassignOrder = order;
+            this.reassignTarget = 'current';
+            this.showReassignModal = true;
+        },
+        closeReassignModal() {
+            this.showReassignModal = false;
         }
      }">
     
@@ -290,6 +305,48 @@
         </div>
     </div>
 
+    <div x-show="showReassignModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click="closeReassignModal()">
+        <div class="bg-white rounded-lg w-full max-w-md p-4" @click.stop>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold">Reasignar Orden</h3>
+                    <p class="text-sm text-slate-600">Elige si reasignar a la sabana actual o a la siguiente.</p>
+                </div>
+                <button @click="closeReassignModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <form :action="getReassignUrl(reassignOrder?.id)" method="POST">
+                @csrf
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-slate-700">Destino de la reassignación</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 cursor-pointer">
+                            <input type="radio" name="target_week" value="current" class="form-radio text-brand" x-model="reassignTarget">
+                            <span>
+                                <span class="font-semibold">Sabana actual</span>
+                                <span class="block text-sm text-slate-500">Mantener la orden en la semana vigente.</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 cursor-pointer">
+                            <input type="radio" name="target_week" value="next" class="form-radio text-brand" x-model="reassignTarget">
+                            <span>
+                                <span class="font-semibold">Sabana siguiente</span>
+                                <span class="block text-sm text-slate-500">Mover la orden a la próxima semana.</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                    <button type="button" @click="closeReassignModal()" class="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">Cancelar</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-amber-100 text-amber-700 px-4 py-2 text-sm font-semibold hover:bg-amber-200 transition">Confirmar reasignar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {{-- Contenedor de Órdenes --}}
    <div class="@if(auth()->user()->role ==="tecnico") max-h-[30vh] md:max-h-[50vh]  @else  max-h-[40vh] md:max-h-[55vh] @endif overflow-y-auto space-y-4">
         <template x-for="order in pagedRecords" :key="order.id">
@@ -360,19 +417,19 @@
                                 @endif
                             </template>
                             @if ($reportar)
-                                <template x-if="order.tasks?.[0]?.status === 'PENDIENTE' && authRole === 'tecnico'">
+                                <template x-if="order.tasks?.[0]?.status === 'PENDIENTE' && authRole === 'tecnico' && !order.tasks?.some(task => task.status === 'NO COMPLETADO')">
                                     <a :href="getReportUrl(order.id, order.tasks?.[0]?.discipline_id)"
                                        class="inline-flex items-center justify-center rounded bg-slate-100 text-slate-700 px-2 py-1 text-[10px] font-semibold hover:bg-slate-200 transition">
                                         Reportar
                                     </a>
                                 </template>
-                            <template x-if="authRole === 'supervisor' && getSupervisorPendingTask(order)">
+                                <template x-if="authRole === 'supervisor' && getSupervisorPendingTask(order) && !order.tasks?.some(task => task.status === 'NO COMPLETADO')">
                                     <a :href="getReportUrl(order.id, getSupervisorPendingTask(order)?.discipline_id)"
                                        class="inline-flex items-center justify-center rounded bg-slate-100 text-slate-700 px-2 py-1 text-[10px] font-semibold hover:bg-slate-200 transition">
                                         Reportar
                                     </a>
                                 </template>
-                                <template x-if="order.tasks?.[0]?.status !== 'PENDIENTE'">
+                                <template x-if="order.tasks?.[0]?.status !== 'PENDIENTE' && !order.tasks?.some(task => task.status === 'NO COMPLETADO')">
                                     <button type="button"
                                             @click.prevent="openReportModal(order)"
                                             class="inline-flex items-center justify-center rounded bg-slate-100 text-slate-700 px-2 py-1 text-[10px] font-semibold hover:bg-slate-200 transition">
@@ -380,6 +437,13 @@
                                     </button>
                                 </template>
                             @endif
+                            <template x-if="order.tasks?.[0]?.status === 'NO COMPLETADO' && ['admin','planificador'].includes(authRole)">
+                                <button type="button"
+                                        @click.prevent="openReassignModal(order)"
+                                        class="inline-flex items-center justify-center rounded bg-amber-100 text-amber-700 px-2 py-1 text-[10px] font-semibold hover:bg-amber-200 transition">
+                                    Reasignar
+                                </button>
+                            </template>
                             <template x-if="order.tasks?.[0]?.status === 'PENDIENTE'">
                                 @if ($eliminar)
                                     <form :action="getDeleteUrl(order.id)" method="POST" class="inline">

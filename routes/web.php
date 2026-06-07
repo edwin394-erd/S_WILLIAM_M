@@ -111,4 +111,9 @@ Route::middleware(['auth'])->prefix('supervisor')->group(function () {
     Route::post('/reportar/{task}', [OrderTaskController::class, 'update'])->name('supervisor.reportar');
 });
 
+Route::middleware(['auth'])->get('/probaralert', function () {
+    return redirect()->back()->with('success', '¡Alerta de éxito!');
+})->name('probaralert');
+
 Route::middleware(['auth'])->post('/workorders/{work_order}/complete-closure', [WorkOrderController::class, 'completeClosure'])->name('workorders.complete-closure');
+Route::middleware(['auth'])->post('/workorders/{work_order}/reassign', [WorkOrderController::class, 'reassign'])->name('workorders.reassign');

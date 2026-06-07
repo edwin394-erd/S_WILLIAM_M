@@ -104,6 +104,13 @@
                             <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>
                         </li>
                     @endif
+                    {{-- <li class="pl-4 mt-4">
+                        <a href="{{ route('probaralert') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">PRUEBA ALERT</a>
+                     </li>
+                    --}}
+                     {{-- <li class="pl-4">
+                        <button data-modal-target="popup-modal" data-modal-toggle="popup-modal" class="text-gray-600 hover:text-pdvsa-red py-1 block text-left w-full">Cerrar Sesión</button>
+                    </li> --}}
                 </ul>
             </nav>
         </aside>

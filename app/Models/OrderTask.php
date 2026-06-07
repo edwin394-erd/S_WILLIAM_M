@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Carbon\Carbon;
 
 use App\Models\OrderTaskEvidence;
 
@@ -24,6 +25,14 @@ class OrderTask extends Model
         'time_start' => 'datetime',
         'time_end'   => 'datetime',
     ];
+
+    public static function markOverduePendingAsNotCompleted(): int
+    {
+        return static::where('status', 'PENDIENTE')
+            ->whereNotNull('time_end')
+            ->where('time_end', '<', Carbon::now('America/Caracas'))
+            ->update(['status' => 'NO COMPLETADO']);
+    }
 
     public function workOrder(): BelongsTo
     {

@@ -8,12 +8,15 @@ use App\Models\WorkSheet;
 use App\Models\Department;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Http;
+use App\Models\OrderTask;
 use Carbon\Carbon;
 
 class WorkSheetController extends Controller
 {
     public function index()
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $worksheets = WorkSheet::with('department')
             ->withCount('workOrders')
             ->withCount([
@@ -137,6 +140,8 @@ class WorkSheetController extends Controller
 
    public function show($id)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         // Cargamos workOrders y, dentro de ellas, sus tareas, sus disciplinas y sus evidencias
         $worksheet = WorkSheet::with([
             'workOrders.equipment', 
@@ -156,6 +161,8 @@ class WorkSheetController extends Controller
         if ($worksheet->start_date <= Carbon::today('America/Caracas')->toDateString() && $worksheet->end_date >= Carbon::today('America/Caracas')->toDateString()) {
             $extraplan = true;
         }
+
+        
 
         return view('worksheets.show')->with('worksheet', $worksheet)->with('extraplan', $extraplan ?? false);
     }

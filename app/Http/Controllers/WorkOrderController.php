@@ -273,6 +273,8 @@ class WorkOrderController extends Controller
 
     public function actividades($id_discipline)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         Discipline::findOrFail($id_discipline);
         $boundaries = $this->getCurrentWeekBoundaries();
 
@@ -309,6 +311,8 @@ class WorkOrderController extends Controller
 
     public function formulario($id_discipline, $work_order_id)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $user = auth()->user();
 
         if ($user->role === 'tecnico') {
@@ -401,10 +405,14 @@ public function reportar(Request $request, $id)
 
         $newStatus = 'POR REVISION';
         if (in_array($user->role, ['admin', 'supervisor'])) {
-            if (in_array($task->status, ['POR REVISION', 'COMPLETADO'])) {
+            if (in_array($task->status, ['PENDIENTE','POR REVISION', 'COMPLETADO'])) {
                 $newStatus = 'COMPLETADO';
             }
         }
+        $workorder = $task->workOrder;
+         $worksheet = $workorder->workSheet;
+
+      
 
         $task->update([
             'observation' => $request->observacion,
@@ -416,8 +424,15 @@ public function reportar(Request $request, $id)
             $this->notifyTaskReportToTelegram($task);
         }
 
+       
+
         if (in_array(auth()->user()->role, ['admin', 'supervisor'])) {
-            return redirect()->back()->with('success', 'Observación guardada con éxito.');
+            $routeName = auth()->user()->role === 'supervisor'
+                ? 'supervisor.worksheets.show'
+                : 'admin.worksheets.show';
+
+            return redirect()->route($routeName, $worksheet->id)
+                ->with('success', 'Actividad reportada con éxito.');
         }
 
         return redirect()->route('tecnico.actividades', auth()->user()->discipline_id)
@@ -499,6 +514,73 @@ public function reportar(Request $request, $id)
         return redirect()->back()->with('success', 'Observación guardada y orden completada.');
     }
 
+    public function reassign(Request $request, $workOrderId)
+    {
+        if (! in_array(auth()->user()->role, ['admin', 'planificador', 'supervisor'], true)) {
+            abort(403, 'No tienes permiso para reasignar esta orden.');
+        }
+
+        $request->validate([
+            'target_week' => 'required|in:current,next',
+        ]);
+
+        $workOrder = WorkOrder::with('workSheet.department')->findOrFail($workOrderId);
+
+        if (! $workOrder->workSheet) {
+            abort(404, 'La orden no está asociada a una sabana válida.');
+        }
+
+        if (auth()->user()->role === 'supervisor' && auth()->user()->department_id !== $workOrder->workSheet->department_id) {
+            abort(403, 'No tienes permiso para reasignar esta orden fuera de tu departamento.');
+        }
+
+        $boundaries = $this->getCurrentWeekBoundaries();
+        $weekStart = $boundaries['start']->copy();
+
+        if ($request->target_week === 'next') {
+            $weekStart->addDays(7);
+        }
+
+        $targetWorksheet = WorkSheet::where('department_id', $workOrder->workSheet->department_id)
+            ->where('start_date', $weekStart->toDateString())
+            ->first();
+
+        if (! $targetWorksheet) {
+            return redirect()->back()->with('error', 'Debes crear la sabana para esa semana.');
+        }
+
+        $previousWorksheetId = $workOrder->work_sheet_id;
+
+        DB::transaction(function () use ($workOrder, $targetWorksheet, $request, $previousWorksheetId) {
+            $workOrder->tasks()
+                ->where('status', 'NO COMPLETADO')
+                ->update(['status' => 'PENDIENTE']);
+
+            $workOrder->update([
+                'work_sheet_id' => $targetWorksheet->id,
+                'is_extraplan' => $request->target_week === 'current',
+            ]);
+
+            if ($previousWorksheetId !== $targetWorksheet->id) {
+                WorkSheet::where('id', $previousWorksheetId)->update(['enviado' => 'POR ENVIAR']);
+                $targetWorksheet->update(['enviado' => 'POR ENVIAR']);
+            }
+        });
+
+        return redirect()->back()->with('success', 'Orden reasignada correctamente.');
+    }
+
+    private function resolveWeekNumber(string $weekStartDate): int
+    {
+        $weekStart = Carbon::parse($weekStartDate, 'America/Caracas')->startOfDay();
+        $year = $weekStart->year;
+        $firstThursday = Carbon::parse("first thursday of january {$year}", 'America/Caracas')->startOfDay();
+
+        $weeksElapsed = (int) floor($weekStart->diffInDays($firstThursday) / 7);
+
+        return max(1, $weeksElapsed + 1);
+    }
+
     public function extraPlans()
     {
         $extraplans = WorkOrder::where('is_extraplan', true)->get();
@@ -517,6 +599,8 @@ public function reportar(Request $request, $id)
 
     public function historial(Request $request)
     {
+        OrderTask::markOverduePendingAsNotCompleted();
+
         $status = $request->query('status');
         $dateFrom = $request->query('dateFrom');
         $dateTo = $request->query('dateTo');
@@ -626,6 +710,11 @@ public function reportar(Request $request, $id)
             ->with('dateFrom', $dateFrom)
             ->with('dateTo', $dateTo)
             ->with('weekFilter', $weekFilter);
+    }
+
+    public function supervisorWorkOrders(Request $request)
+    {
+        return $this->historial($request);
     }
 
     public function historialPdf(Request $request)
