@@ -326,15 +326,15 @@
                         <label class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 cursor-pointer">
                             <input type="radio" name="target_week" value="current" class="form-radio text-brand" x-model="reassignTarget">
                             <span>
-                                <span class="font-semibold">Sabana actual</span>
-                                <span class="block text-sm text-slate-500">Mantener la orden en la semana vigente.</span>
+                                <span class="font-semibold">Sabana actual (Extraplan)</span>
+                                <span class="block text-sm text-slate-500">Mantener la orden en la semana vigente y marcarla como extraplan.</span>
                             </span>
                         </label>
                         <label class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 cursor-pointer">
                             <input type="radio" name="target_week" value="next" class="form-radio text-brand" x-model="reassignTarget">
                             <span>
-                                <span class="font-semibold">Sabana siguiente</span>
-                                <span class="block text-sm text-slate-500">Mover la orden a la próxima semana.</span>
+                                <span class="font-semibold">Sabana siguiente (Plan)</span>
+                                <span class="block text-sm text-slate-500">Mover la orden a la próxima semana como plan.</span>
                             </span>
                         </label>
                     </div>
@@ -437,7 +437,7 @@
                                     </button>
                                 </template>
                             @endif
-                            <template x-if="order.tasks?.[0]?.status === 'NO COMPLETADO' && ['admin','planificador'].includes(authRole)">
+                            <template x-if="order.tasks?.some(task => task.status === 'NO COMPLETADO') && ['admin','planificador'].includes(authRole)">
                                 <button type="button"
                                         @click.prevent="openReassignModal(order)"
                                         class="inline-flex items-center justify-center rounded bg-amber-100 text-amber-700 px-2 py-1 text-[10px] font-semibold hover:bg-amber-200 transition">

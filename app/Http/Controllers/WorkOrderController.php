@@ -252,24 +252,6 @@ class WorkOrderController extends Controller
             ->with('success', "Orden {$workOrder->odm_number} eliminada correctamente.");
     }
 
-    private function getCurrentWeekBoundaries(): array
-    {
-        $today = Carbon::now('America/Caracas')->startOfDay();
-        $weekday = $today->dayOfWeekIso; // 1 = Monday, 7 = Sunday
-
-        if ($weekday >= 4) {
-            $weekStart = Carbon::parse('thursday this week', 'America/Caracas')->startOfDay();
-        } else {
-            $weekStart = Carbon::parse('thursday last week', 'America/Caracas')->startOfDay();
-        }
-
-        $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
-
-        return [
-            'start' => $weekStart,
-            'end' => $weekEnd,
-        ];
-    }
 
     public function actividades($id_discipline)
     {
@@ -514,9 +496,14 @@ public function reportar(Request $request, $id)
         return redirect()->back()->with('success', 'Observación guardada y orden completada.');
     }
 
-    public function reassign(Request $request, $workOrderId)
+   public function reassign(Request $request, $workOrderId)
     {
+        Log::debug("=== INICIO DE DEBUEGO REASSIGN ===");
+        Log::debug("Orden ID a reasignar: {$workOrderId}");
+        Log::debug("Target week solicitado: " . $request->input('target_week'));
+
         if (! in_array(auth()->user()->role, ['admin', 'planificador', 'supervisor'], true)) {
+            Log::error("Fallo de permisos. Rol actual: " . auth()->user()->role);
             abort(403, 'No tienes permiso para reasignar esta orden.');
         }
 
@@ -524,50 +511,129 @@ public function reportar(Request $request, $id)
             'target_week' => 'required|in:current,next',
         ]);
 
-        $workOrder = WorkOrder::with('workSheet.department')->findOrFail($workOrderId);
+        $workOrder = WorkOrder::with(['workSheet.department', 'tasks'])->find($workOrderId);
 
-        if (! $workOrder->workSheet) {
-            abort(404, 'La orden no está asociada a una sabana válida.');
+        if (! $workOrder) {
+            Log::error("No se encontró la Orden de Trabajo con ID: {$workOrderId}");
+            abort(404, 'La orden no existe.');
         }
 
+        if (! $workOrder->workSheet) {
+            Log::error("La orden {$workOrder->odm_number} (ID: {$workOrder->id}) NO tiene una sábana asociada (work_sheet_id es nulo o inválido).");
+            abort(404, 'La orden no está asociada a una sábana válida.');
+        }
+
+        Log::debug("Sábana de origen encontrada. ID: {$workOrder->work_sheet_id} | Departamento ID: {$workOrder->workSheet->department_id} | Fecha Inicio: {$workOrder->workSheet->start_date}");
+
         if (auth()->user()->role === 'supervisor' && auth()->user()->department_id !== $workOrder->workSheet->department_id) {
+            Log::error("El supervisor pertenece al depto " . auth()->user()->department_id . " pero la orden pertenece al depto " . $workOrder->workSheet->department_id);
             abort(403, 'No tienes permiso para reasignar esta orden fuera de tu departamento.');
         }
 
         $boundaries = $this->getCurrentWeekBoundaries();
         $weekStart = $boundaries['start']->copy();
+        Log::debug("Jueves operativo de la semana ACTUAL calculado: " . $weekStart->toDateString());
 
         if ($request->target_week === 'next') {
-            $weekStart->addDays(7);
+            $weekStart->addWeek(); 
+            Log::debug("Modificado al Jueves de la SIGUIENTE semana: " . $weekStart->toDateString());
         }
 
+        // INTENTO DE BUSQUEDA DE LA SÁBANA DESTINO
         $targetWorksheet = WorkSheet::where('department_id', $workOrder->workSheet->department_id)
-            ->where('start_date', $weekStart->toDateString())
+            ->whereDate('start_date', $weekStart->toDateString())
             ->first();
 
         if (! $targetWorksheet) {
-            return redirect()->back()->with('error', 'Debes crear la sabana para esa semana.');
+            $errorMsg = "ERROR CRÍTICO: No existe la sábana destino en la base de datos para el departamento " . $workOrder->workSheet->department_id . " con fecha de inicio " . $weekStart->toDateString();
+            Log::error($errorMsg);
+            
+            // Verificamos si al menos existen otras sábanas para este departamento para darte pistas en el log
+            $existentes = WorkSheet::where('department_id', $workOrder->workSheet->department_id)->pluck('start_date')->toArray();
+            Log::error("Fechas de sábanas que SÍ existen para este departamento: " . implode(', ', $existentes));
+
+            return redirect()->back()->with('error', "No se reasignó. Debes crear primero la sábana para la fecha: {$weekStart->toDateString()}.");
         }
 
+        Log::debug("Sábana destino ENCONTRADA. ID: {$targetWorksheet->id} | Fecha Inicio: {$targetWorksheet->start_date}");
+
         $previousWorksheetId = $workOrder->work_sheet_id;
+        $totalTasks = $workOrder->tasks->count();
+        Log::debug("Cantidad de tareas asociadas a la orden que van a ser modificadas: {$totalTasks}");
 
-        DB::transaction(function () use ($workOrder, $targetWorksheet, $request, $previousWorksheetId) {
-            $workOrder->tasks()
-                ->where('status', 'NO COMPLETADO')
-                ->update(['status' => 'PENDIENTE']);
+        try {
+            DB::transaction(function () use ($workOrder, $targetWorksheet, $request, $previousWorksheetId, $weekStart) {
+                
+                $originalWorksheetStart = Carbon::parse($workOrder->workSheet->start_date)->startOfDay();
 
-            $workOrder->update([
-                'work_sheet_id' => $targetWorksheet->id,
-                'is_extraplan' => $request->target_week === 'current',
-            ]);
+                foreach ($workOrder->tasks as $index => $task) {
+                    $taskDate = Carbon::parse($task->date)->startOfDay();
+                    $dayOffset = $originalWorksheetStart->diffInDays($taskDate, false);
+                    $newTaskDate = $weekStart->copy()->addDays($dayOffset);
 
-            if ($previousWorksheetId !== $targetWorksheet->id) {
-                WorkSheet::where('id', $previousWorksheetId)->update(['enviado' => 'POR ENVIAR']);
-                $targetWorksheet->update(['enviado' => 'POR ENVIAR']);
-            }
-        });
+                    Log::debug("--> Modificando Tarea Index {$index} (ID: {$task->id}): Fecha vieja = {$task->date} -> Fecha nueva = " . $newTaskDate->toDateString());
 
-        return redirect()->back()->with('success', 'Orden reasignada correctamente.');
+                    $taskUpdated = $task->update([
+                        'status' => 'PENDIENTE',
+                        'date'   => $newTaskDate->toDateString()
+                    ]);
+
+                    if (!$taskUpdated) {
+                        throw new \Exception("No se pudo actualizar la tarea ID: {$task->id} en la base de datos.");
+                    }
+                }
+
+                // Intentar mover la orden
+                Log::debug("Actualizando tabla work_orders: Moviendo work_sheet_id de {$previousWorksheetId} a {$targetWorksheet->id}");
+                $orderUpdated = $workOrder->update([
+                    'work_sheet_id' => $targetWorksheet->id,
+                    'is_extraplan'  => $request->target_week === 'current',
+                ]);
+
+                if (!$orderUpdated) {
+                    throw new \Exception("Fallo el update de la orden de trabajo ID: {$workOrder->id}");
+                }
+
+                if ($previousWorksheetId !== $targetWorksheet->id) {
+                    Log::debug("Marcando sábanas viejas y nuevas como 'POR ENVIAR'");
+                    WorkSheet::whereIn('id', [$previousWorksheetId, $targetWorksheet->id])
+                        ->update(['enviado' => 'POR ENVIAR']);
+                }
+            });
+
+            Log::debug("=== TRANSACCIÓN EXITOSA EN BASE DE DATOS ===");
+
+        } catch (\Throwable $e) {
+            Log::error('=== TRANSACCIÓN ABORTADA (ROLLBACK) ===');
+            Log::error('Mensaje de error: ' . $e->getMessage());
+            Log::error('Línea: ' . $e->getLine() . ' | Archivo: ' . $e->getFile());
+            return redirect()->back()->with('error', 'Falla en la base de datos al reasignar: ' . $e->getMessage());
+        }
+
+        $message = "Orden {$workOrder->odm_number} reasignada con éxito a la semana " . ($request->target_week === 'current' ? 'actual.' : 'siguiente.');
+        Log::debug("Redirección final exitosa: " . $message);
+        
+        return redirect()->back()->with('success', $message);
+    }
+
+    private function getCurrentWeekBoundaries(): array
+    {
+        $today = Carbon::now('America/Caracas')->startOfDay();
+        $weekday = $today->dayOfWeekIso; // 1 = Lunes, 4 = Jueves, 7 = Domingo
+
+        // Reajuste determinista del Jueves operativo de inicio
+        if ($weekday >= 4) {
+            $weekStart = $today->copy()->subDays($weekday - 4);
+        } else {
+            $weekStart = $today->copy()->subDays($weekday + 3);
+        }
+
+        $weekEnd = $weekStart->copy()->addDays(6)->endOfDay();
+
+        return [
+            'start' => $weekStart,
+            'end' => $weekEnd,
+        ];
     }
 
     private function resolveWeekNumber(string $weekStartDate): int

@@ -29,8 +29,9 @@ class OrderTask extends Model
     public static function markOverduePendingAsNotCompleted(): int
     {
         return static::where('status', 'PENDIENTE')
-            ->whereNotNull('time_end')
-            ->where('time_end', '<', Carbon::now('America/Caracas'))
+            ->whereHas('workOrder.workSheet', function ($query) {
+                $query->where('end_date', '<', Carbon::now('America/Caracas')->toDateString());
+            })
             ->update(['status' => 'NO COMPLETADO']);
     }
 
