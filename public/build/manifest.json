@@ -1,0 +1,36 @@
+{
+  "_vendor-BtCtWYRI.js": {
+    "file": "assets/vendor-BtCtWYRI.js",
+    "name": "vendor",
+    "css": [
+      "assets/vendor-CIgf0F6L.css"
+    ]
+  },
+  "_vendor-CIgf0F6L.css": {
+    "file": "assets/vendor-CIgf0F6L.css",
+    "src": "_vendor-CIgf0F6L.css"
+  },
+  "_vendor-alpine-DLuZkmyn.js": {
+    "file": "assets/vendor-alpine-DLuZkmyn.js",
+    "name": "vendor-alpine"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-B8VVujCx.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-DROhCnE7.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_vendor-BtCtWYRI.js",
+      "_vendor-alpine-DLuZkmyn.js"
+    ]
+  }
+}
