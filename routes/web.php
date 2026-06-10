@@ -58,6 +58,11 @@ Route::middleware(['auth', CheckTecnico::class])->group(function () {
 
 
 
+Route::middleware(['auth', CheckTecnico::class])->prefix('tecnico')->group(function () {
+    Route::get('/workorders/historial', [WorkOrderController::class, 'historial'])->name('tecnico.workorders.historial');
+    Route::get('/workorders/historial/pdf', [WorkOrderController::class, 'historialPdf'])->name('tecnico.workorders.historial.pdf');
+});
+
 Route::middleware(['auth', CheckPlanAdmin::class])->group(function () {
     Route::resource('worksheets', WorkSheetController::class)->names('admin.worksheets');
     Route::get('worksheets/{worksheet}/pdf', [WorkSheetController::class, 'generatePdf'])->name('admin.worksheets.pdf');

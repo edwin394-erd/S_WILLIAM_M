@@ -2,9 +2,12 @@
 
 @if(auth()->user()->role === 'admin' || auth()->user()->role === 'planificador')
     @section('title', 'Historial de Asignaciones')
-@else
+@elseif(auth()->user()->role === 'supervisor')
     @section('title', 'Historial de Asignaciones - '.($departmentName ?? ''))
-    
+@elseif(auth()->user()->role === 'tecnico')
+    @section('title', 'Historial de mi Disciplina')
+@else
+    @section('title', 'Historial de Asignaciones')
 @endif
 
 

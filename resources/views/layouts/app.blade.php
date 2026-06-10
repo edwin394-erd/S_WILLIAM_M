@@ -103,6 +103,9 @@
                         <li class="pl-4">
                             <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>
                         </li>
+                        <li class="pl-4">
+                            <a href="{{ route('tecnico.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                        </li>
                     @endif
                     {{-- <li class="pl-4 mt-4">
                         <a href="{{ route('probaralert') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">PRUEBA ALERT</a>
@@ -165,7 +168,7 @@
         <header class="bg-white border-b-4 border-pdvsa-red shadow-sm shrink-0">
             <div class="flex justify-between items-center px-6 py-2">
                 <x-pdvs-logo class="h-10"/>
-                <p class="hidden md:block text-[14px] text-gray-500">{{ now('America/Caracas')->translatedFormat('l d \d\e F \d\e Y H:i') }}</p>
+                <p class=" md:block text-[14px] text-gray-500">{{ now('America/Caracas')->translatedFormat('l d \d\e F \d\e Y H:i') }}</p>
             </div>
         </header>
         <main class="flex-1 flex flex-col items-center justify-center p-4">

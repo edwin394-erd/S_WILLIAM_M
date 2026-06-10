@@ -97,7 +97,11 @@
             if (this.dateFrom) params.set('dateFrom', this.dateFrom);
             if (this.dateTo) params.set('dateTo', this.dateTo);
             if (this.search) params.set('search', this.search);
-            const base = this.authRole === 'supervisor' ? '{{ route("supervisor.workorders.historial.pdf") }}' : '{{ route("admin.workorders.historial.pdf") }}';
+            const base = this.authRole === 'supervisor'
+                ? '{{ route("supervisor.workorders.historial.pdf") }}'
+                : this.authRole === 'tecnico'
+                    ? '{{ route("tecnico.workorders.historial.pdf") }}'
+                    : '{{ route("admin.workorders.historial.pdf") }}';
             return base + (params.toString() ? ('?' + params.toString()) : '');
         },
         

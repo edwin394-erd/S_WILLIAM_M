@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<section class="dark:bg-gray-900 flex items-center justify-center py-10 x-cloak">
+<section class="dark:bg-gray-900 flex items-center justify-center py-10 x-cloak w-full min-h-screen">
     <div class="flex flex-col md:flex-row bg-white rounded-lg shadow-md overflow-hidden w-full max-w-4xl justify-center x-cloak h-[500px]">
 
         {{-- Formulario de Login --}}

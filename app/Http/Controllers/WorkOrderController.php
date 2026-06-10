@@ -690,6 +690,7 @@ public function reportar(Request $request, $id)
             }
         }
 
+        $user = auth()->user();
         $query = WorkOrder::with([
                 'tasks' => function ($taskQuery) {
                     $taskQuery->orderBy('date', 'asc')->orderBy('time_start', 'asc');
@@ -702,9 +703,19 @@ public function reportar(Request $request, $id)
             ])
             ->orderByRaw('(select max(date) from order_tasks where order_tasks.work_order_id = work_orders.id) desc');
 
+        if ($user && $user->role === 'tecnico') {
+            if (! $user->discipline_id) {
+                abort(403, 'No tienes una disciplina asignada. Contacta al administrador.');
+            }
+
+            $query->whereHas('tasks', function ($taskQuery) use ($user) {
+                $taskQuery->where('discipline_id', $user->discipline_id);
+            });
+        }
+
         // If the current user is a supervisor, restrict to orders in their worksheet department
-        if (auth()->user() && auth()->user()->role === 'supervisor') {
-            $deptId = auth()->user()->department_id;
+        if ($user && $user->role === 'supervisor') {
+            $deptId = $user->department_id;
             if ($deptId) {
                 $query->whereHas('workSheet', function ($q) use ($deptId) {
                     $q->where('department_id', $deptId);
@@ -712,13 +723,13 @@ public function reportar(Request $request, $id)
             }
         }
 
-        if ($request->filled('department_id')) {
+        if ($request->filled('department_id') && $user && $user->role !== 'tecnico') {
             $query->whereHas('workSheet', function ($sheetQuery) use ($request) {
                 $sheetQuery->where('department_id', $request->query('department_id'));
             });
         }
 
-        if ($request->filled('discipline_id')) {
+        if ($request->filled('discipline_id') && $user && $user->role !== 'tecnico') {
             $query->whereHas('tasks', function ($taskQuery) use ($request) {
                 $taskQuery->where('discipline_id', $request->query('discipline_id'));
             });
@@ -737,6 +748,11 @@ public function reportar(Request $request, $id)
 
         $departments = Department::orderBy('name')->pluck('name', 'id')->toArray();
         $disciplines = Discipline::orderBy('name')->pluck('name', 'id')->toArray();
+
+        if ($user && $user->role === 'tecnico') {
+            $departments = [];
+            $disciplines = [];
+        }
 
         $workOrders = $query->get();
 
@@ -802,8 +818,19 @@ public function reportar(Request $request, $id)
             ])
             ->orderByRaw('(select max(date) from order_tasks where order_tasks.work_order_id = work_orders.id) desc');
 
-        if (auth()->user() && auth()->user()->role === 'supervisor') {
-            $deptId = auth()->user()->department_id;
+        $user = auth()->user();
+        if ($user && $user->role === 'tecnico') {
+            if (! $user->discipline_id) {
+                abort(403, 'No tienes una disciplina asignada. Contacta al administrador.');
+            }
+
+            $query->whereHas('tasks', function ($taskQuery) use ($user) {
+                $taskQuery->where('discipline_id', $user->discipline_id);
+            });
+        }
+
+        if ($user && $user->role === 'supervisor') {
+            $deptId = $user->department_id;
             if ($deptId) {
                 $query->whereHas('workSheet', function ($q) use ($deptId) {
                     $q->where('department_id', $deptId);
@@ -811,13 +838,13 @@ public function reportar(Request $request, $id)
             }
         }
 
-        if ($request->filled('department_id')) {
+        if ($request->filled('department_id') && $user && $user->role !== 'tecnico') {
             $query->whereHas('workSheet', function ($sheetQuery) use ($request) {
                 $sheetQuery->where('department_id', $request->query('department_id'));
             });
         }
 
-        if ($request->filled('discipline_id')) {
+        if ($request->filled('discipline_id') && $user && $user->role !== 'tecnico') {
             $query->whereHas('tasks', function ($taskQuery) use ($request) {
                 $taskQuery->where('discipline_id', $request->query('discipline_id'));
             });
@@ -859,11 +886,11 @@ public function reportar(Request $request, $id)
         $departmentNameFilter = null;
         $disciplineNameFilter = null;
 
-        if ($request->filled('department_id')) {
+        if ($request->filled('department_id') && $user && $user->role !== 'tecnico') {
             $departmentNameFilter = Department::where('id', $request->query('department_id'))->value('name');
         }
 
-        if ($request->filled('discipline_id')) {
+        if ($request->filled('discipline_id') && $user && $user->role !== 'tecnico') {
             $disciplineNameFilter = Discipline::where('id', $request->query('discipline_id'))->value('name');
         }
 
