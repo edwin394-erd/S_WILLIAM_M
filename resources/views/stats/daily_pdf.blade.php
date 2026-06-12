@@ -33,8 +33,8 @@
 <body>
     <table style="margin-bottom: 6px;">
         <tr>
-            <td style="width: 15%;"><img src="{{ public_path('imgs/petroboscan.png') }}" class="logo"></td>
-            <td style="width: 70%;" class="title">REPORTE DIARIO</td>
+            <td style="width: 20%;"><img src="{{ public_path('imgs/petroboscan.png') }}" class="logo"></td>
+            <td style="width: 65%;" class="title">REPORTE DIARIO</td>
             <td style="width: 15%; text-align: right;">Generado: {{ $generatedAt ?? now()->format('d/m/Y H:i') }}</td>
         </tr>
     </table>
