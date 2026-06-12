@@ -106,13 +106,13 @@
                     <td style="width: 10%; border: none; text-align: left; padding-left: 5px;">{{ $workOrder->equipment->name }}</td>
                     <td class="text-center" style="width: 6%; border: none;">{{ $workOrder->impacto }} Bls</td>
                 </tr>
-
                     @foreach($workOrder->tasks as $task)
                     <tr class="task-row">
                         <td class="text-center" style="border-top: none;">{{ $workOrder->odm_number ? 'A-' . substr($workOrder->odm_number, -6) : '---' }}</td>
                         <td colspan="2" class="text-center" style="font-weight: bold; border-top: none;"> {{ $task->discipline->name }}</td>
                         <td colspan="4" style="border-top: none;">
                             <strong>{{ strtoupper($workOrder->accion_requerida) }}</strong>
+                            <span style="display: block; margin-top: 2px; color: #333; font-size: 9px;">Prioridad: {{ $task->priority ?? 'Sin prioridad' }}</span>
                             <span style="float: right; color: #666;">
                                De {{ \Carbon\Carbon::parse($task->time_start)->format('H:i') }} a {{ \Carbon\Carbon::parse($task->time_end)->format('H:i') }}
                             </span>
@@ -261,7 +261,6 @@
             foreach($highRiskDays as $os) {
                 $rowsForLateral += ($os->where('is_high_risk', true)->count() * 2) + 1;
             }
-            $rowsForLateral += 1; 
 
             $isFirstRowTotal = true; 
         @endphp
@@ -277,7 +276,7 @@
                 $totalDay = $highRisk->count(); // Total de órdenes para este día específico
             @endphp
             
-            @foreach($highRisk as $index => $order)
+            @foreach($highRisk as $order)
                 <tr>
                     @if($isFirstRowTotal)
                         <td class="header-lateral-rojo" rowspan="{{ $rowsForLateral }}">
@@ -286,7 +285,7 @@
                         @php $isFirstRowTotal = false; @endphp
                     @endif
 
-                    @if($index == 0)
+                    @if($loop->first)
                         <td rowspan="{{ ($totalDay * 2) + 1 }}" class="cell-dia-gris">
                             {{ strtolower(\Carbon\Carbon::parse($date)->translatedFormat('l')) }}<br>
                             {{ \Carbon\Carbon::parse($date)->format('d/m/y') }}
@@ -313,7 +312,7 @@
         @endforeach
 
         <tr>
-            <td colspan="3" class="footer-rojo-total">Total</td>
+            <td colspan="4" class="footer-rojo-total">Total</td>
             <td class="cell-total-roja" style="font-size: 12px;">
                 {{ $worksheet->workOrders->where('is_high_risk', true)->count() }}
             </td>
@@ -321,6 +320,12 @@
     </tbody>
 </table>
 @endif
+
 @endif
+
+<!-- Imagen de prevención añadida al final de la sábana -->
+<div style="text-align:center; margin-top:8px;">
+    <img src="{{ public_path('imgs/sabana_prevention.png') }}" alt="Prevencion y deteccion de riesgos" style="width:100%; object-fit:contain;" />
+</div>
 </body>
 </html>

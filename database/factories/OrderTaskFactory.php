@@ -22,6 +22,7 @@ class OrderTaskFactory extends Factory
             'time_start' => $start->format('Y-m-d H:i:s'),
             'time_end' => $end->format('Y-m-d H:i:s'),
             'status' => fake()->randomElement(['PENDIENTE', 'POR REVISION', 'COMPLETADO', 'NO COMPLETADO']),
+            'priority' => fake()->randomElement(['Nivel 1', 'Nivel 2', 'Prioridad alta', 'Actividad critica']),
             'observation' => fake()->optional(0.6)->sentence(),
             'evidence_path' => null,
             'user_report_id' => null,

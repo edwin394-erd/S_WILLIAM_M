@@ -14,10 +14,17 @@ class OrderTask extends Model
 {
     use HasFactory;
 
+    public const PRIORITY_LEVELS = [
+        'Nivel 1',
+        'Nivel 2',
+        'Prioridad alta',
+        'Actividad critica',
+    ];
+
     protected $fillable = [
         'work_order_id', 'department_id', 'discipline_id',
         'date', 'time_start', 'time_end',
-        'status', 'observation', 'evidence_path', 'user_report_id'
+        'status', 'priority', 'observation', 'evidence_path', 'user_report_id'
     ];
 
     protected $casts = [

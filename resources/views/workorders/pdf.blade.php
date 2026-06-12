@@ -127,13 +127,13 @@
                     <td style="width: 10%; border: none; text-align: left; padding-left: 5px;">{{ $workOrder->equipment->name }}</td>
                     <td class="text-center" style="width: 6%; border: none;">{{ $workOrder->impacto }} Bls</td>
                 </tr>
-
                     @foreach($workOrder->tasks as $task)
                         <tr class="task-row">
                             <td class="text-center" style="border-top: none;">{{ $workOrder->odm_number ? 'A-' . substr($workOrder->odm_number, -6) : '---' }}</td>
                             <td colspan="2" class="text-center" style="font-weight: bold; border-top: none;">DISCIPLINA: {{ optional($task->discipline)->name }}</td>
                             <td colspan="4" style="border-top: none;">
                                 <strong>{{ strtoupper($workOrder->accion_requerida) }}</strong>
+                                <span style="display: block; margin-top: 2px; color: #333; font-size: 9px;">Prioridad: {{ $task->priority ?? 'Sin prioridad' }}</span>
                                 <span style="float: right; color: #666;">De {{ \Carbon\Carbon::parse($task->time_start)->format('H:i') }} a {{ \Carbon\Carbon::parse($task->time_end)->format('H:i') }}</span>
                             </td>
                         </tr>

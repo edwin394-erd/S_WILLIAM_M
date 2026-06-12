@@ -15,8 +15,9 @@
         $notCompletedOrders = $tasksByStatus['NO COMPLETADO'] ?? 0;
     @endphp
 
-    <div x-data="{
+        <div x-data="{
             showPdfModal: false,
+            showDailyModal: false,
             pdfWeekStart: @js($selectedWeekStart ?? ''),
             pdfDepartmentId: @js($selectedDepartmentId ?? ''),
             pdfDisciplineId: @js($selectedDisciplineId ?? ''),
@@ -63,6 +64,9 @@
         <div class="flex items-center gap-2">
             <button type="button" @click="showPdfModal = true" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">
                 Generar PDF
+            </button>
+            <button type="button" @click="showDailyModal = true" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">
+                Generar reporte diario
             </button>
         </div>
 
@@ -231,6 +235,36 @@
                             <button type="button" @click="showPdfModal = false" class="rounded-2xl border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">Cancelar</button>
                             <button type="submit" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-slate-700">Descargar PDF</button>
                         </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div x-show="showDailyModal" x-cloak @keydown.escape.window="showDailyModal = false" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div @click.stop class="w-full max-w-md overflow-visible rounded-[2rem] bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-200 p-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900">Generar Reporte Diario</h2>
+                        <p class="text-sm text-slate-500">Seleccione niveles de prioridad a incluir en el reporte.</p>
+                    </div>
+                    <button type="button" @click="showDailyModal = false" class="rounded-full border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">Cerrar</button>
+                </div>
+
+                <form method="GET" target="_blank" rel="noopener" action="{{ auth()->user()->role === 'supervisor' ? route('supervisor.stats.daily.pdf') : route('admin.stats.daily.pdf') }}" class="space-y-4 p-4">
+                    @if(auth()->user()->role === 'supervisor')
+                        <input type="hidden" name="department_id" value="{{ $selectedDepartmentId ?? '' }}" />
+                    @endif
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Prioridad</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2"><input type="radio" name="priority" value="all" checked> Todos</label>
+                            <label class="flex items-center gap-2"><input type="radio" name="priority" value="high"> Solo Prioridad alta y Actividades críticas</label>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                        <button type="button" @click="showDailyModal = false" class="rounded-2xl border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">Cancelar</button>
+                        <button type="submit" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-slate-700">Descargar PDF</button>
                     </div>
                 </form>
             </div>

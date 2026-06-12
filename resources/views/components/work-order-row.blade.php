@@ -12,6 +12,9 @@
         <div class="w-28 px-2 border-l border-gray-200">
             {{ $order->type }}
         </div>
+        <div class="w-28 px-2 border-l border-gray-200">
+            {{ $order->tasks->first()->priority ?? 'Sin prioridad' }}
+        </div>
         <div class="flex-1 px-2 border-l border-gray-200 uppercase">
             {{ $order->accion_requerida }}
         </div>
@@ -43,6 +46,8 @@
             Del <span class="font-bold text-gray-800">{{ \Carbon\Carbon::parse($task->date)->format('d/m/y') }}</span> 
             {{ \Carbon\Carbon::parse($task->time_start)->format('H:i') }} 
             Al {{ \Carbon\Carbon::parse($task->time_end)->format('H:i') }}
+            <br>
+            <span class="text-xs text-slate-600">Prioridad: {{ $task->priority ?? 'Sin prioridad' }}</span>
         </div>
     </div>
     @endforeach

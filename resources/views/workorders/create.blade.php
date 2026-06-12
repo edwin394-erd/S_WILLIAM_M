@@ -72,7 +72,16 @@
                         :options="['PREVENTIVO' => 'Preventivo', 'CORRECTIVO' => 'Correctivo', 'PREDICTIVO' => 'Predictivo', 'DETECTIVO' => 'Detectivo']" 
                         placeholder="Seleccione un tipo de matenimiento"
                         required
-                        
+                    />
+                    <br>
+
+                    <x-select
+                        name="priority"
+                        label="Prioridad"
+                        :options="['Nivel 1' => 'Nivel 1', 'Nivel 2' => 'Nivel 2', 'Prioridad alta' => 'Prioridad alta', 'Actividad critica' => 'Actividad critica']"
+                        selected="{{ old('priority', 'Nivel 1') }}"
+                        placeholder="Seleccione una prioridad"
+                        required
                     />
                     <br>
 

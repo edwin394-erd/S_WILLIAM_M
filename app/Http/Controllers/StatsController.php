@@ -633,6 +633,238 @@ class StatsController extends Controller
         return $pdf->stream('estadisticas.pdf');
     }
 
+    public function adminDailyReportPdf(Request $request)
+    {
+        $data = $this->buildDailyPdfData($request, true);
+        $pdf = Pdf::loadView('stats.daily_pdf', $data)->setPaper('a4', 'portrait');
+        return $pdf->stream('reporte_diario.pdf');
+    }
+
+    public function supervisorDailyReportPdf(Request $request)
+    {
+        $data = $this->buildDailyPdfData($request, false);
+        $pdf = Pdf::loadView('stats.daily_pdf', $data)->setPaper('a4', 'portrait');
+        return $pdf->stream('reporte_diario.pdf');
+    }
+
+    private function buildDailyPdfData(Request $request, bool $isAdmin): array
+    {
+        OrderTask::markOverduePendingAsNotCompleted();
+
+        $priorityParam = $request->query('priority', 'all');
+        $priorities = null;
+        if ($priorityParam !== 'all') {
+            // Mostrar solo Prioridad alta y Actividad critica
+            $priorities = ['Prioridad alta', 'Actividad critica'];
+        }
+
+        $now = Carbon::now('America/Caracas');
+        $today = $now->toDateString();
+        $yesterday = $now->copy()->subDay()->toDateString();
+
+        $departmentId = null;
+        if (!$isAdmin) {
+            $departmentId = Auth::user()->department_id;
+        }
+
+        $tasksByStatusQuery = OrderTask::selectRaw('status, count(*) as total')
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities));
+
+        $tasksByStatus = $tasksByStatusQuery
+            ->whereDate('order_tasks.date', $yesterday)
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->toArray();
+
+        $ordersByTypeQuery = WorkOrder::selectRaw('work_orders.type, count(distinct work_orders.id) as total')
+            ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $yesterday)
+            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities));
+
+        $ordersByType = $ordersByTypeQuery
+            ->groupBy('work_orders.type')
+            ->orderBy('work_orders.type')
+            ->pluck('total', 'type')
+            ->toArray();
+
+        $extraPlanOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $yesterday)
+            ->where('work_orders.is_extraplan', true)
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities));
+
+        $extraPlanOrders = $extraPlanOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $planOrdersQuery = WorkOrder::join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $yesterday)
+            ->where('work_orders.is_extraplan', false)
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities));
+
+        $planOrders = $planOrdersQuery->distinct('work_orders.id')->count('work_orders.id');
+
+        $planVsExtra = ['plan' => $planOrders, 'extra' => $extraPlanOrders, 'total' => $planOrders + $extraPlanOrders];
+        $planVsExtra['plan_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['plan'] / $planVsExtra['total']) * 100, 1) : 0;
+        $planVsExtra['extra_percent'] = $planVsExtra['total'] > 0 ? round(($planVsExtra['extra'] / $planVsExtra['total']) * 100, 1) : 0;
+
+        $yesterdayCompletedTasksQuery = OrderTask::with(['workOrder', 'discipline', 'department'])
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $yesterday)
+            ->where('order_tasks.status', 'COMPLETADO')
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities))
+            ->orderBy('time_start');
+
+        $yesterdayTasks = $yesterdayCompletedTasksQuery->get();
+
+        $todayTasksQuery = OrderTask::with(['workOrder', 'discipline', 'department'])
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $today)
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities))
+            ->orderBy('time_start');
+
+        $todayTasks = $todayTasksQuery->get();
+
+        $totalTasks = array_sum($tasksByStatus);
+        $generalCompletionPercentage = $totalTasks > 0 ? round((($tasksByStatus['COMPLETADO'] ?? 0) / $totalTasks) * 100, 1) : 0;
+
+        $statuses = [
+            'COMPLETADO' => intval($tasksByStatus['COMPLETADO'] ?? 0),
+            'PENDIENTE' => intval($tasksByStatus['PENDIENTE'] ?? 0),
+            'POR REVISION' => intval($tasksByStatus['POR REVISION'] ?? 0),
+            'NO COMPLETADO' => intval($tasksByStatus['NO COMPLETADO'] ?? 0),
+        ];
+
+        $ordersByTypeTotal = array_sum($ordersByType);
+        $ordersByTypePercent = [];
+        foreach ($ordersByType as $type => $count) {
+            $ordersByTypePercent[$type] = $ordersByTypeTotal > 0 ? round(($count / $ordersByTypeTotal) * 100, 1) : 0;
+        }
+
+        $ordersByDepartmentStatusQuery = OrderTask::selectRaw(
+                'disciplines.department_id, departments.name as department_name, '
+                . 'SUM(CASE WHEN order_tasks.status = "COMPLETADO" THEN 1 ELSE 0 END) as completed, '
+                . 'COUNT(*) as total'
+            )
+            ->join('disciplines', 'order_tasks.discipline_id', '=', 'disciplines.id')
+            ->join('departments', 'disciplines.department_id', '=', 'departments.id')
+            ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
+            ->whereDate('order_tasks.date', $yesterday)
+            ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities))
+            ->groupBy('disciplines.department_id', 'departments.name')
+            ->orderBy('departments.name');
+
+        $ordersByDepartmentStatusRows = $ordersByDepartmentStatusQuery->get();
+        $departmentCompletion = [];
+        foreach ($ordersByDepartmentStatusRows as $row) {
+            $departmentCompletion[$row->department_name] = $row->total > 0 ? round(($row->completed / $row->total) * 100, 1) : 0;
+        }
+
+        $pieConfig = [
+            'type' => 'pie',
+            'data' => [
+                'labels' => array_keys($statuses),
+                'datasets' => [[
+                    'data' => array_values($statuses),
+                    'backgroundColor' => ['#00bfa5', '#ff9100', '#2979ff', '#ff1744']
+                ]]
+            ],
+            'options' => [
+                'legend' => ['position' => 'right', 'labels' => ['fontSize' => 9]],
+                'plugins' => ['datalabels' => ['color' => '#fff', 'font' => ['weight' => 'bold', 'size' => 9]]]
+            ]
+        ];
+
+        $barConfig = [
+            'type' => 'bar',
+            'data' => [
+                'labels' => ['Plan', 'Extra Plan'],
+                'datasets' => [[
+                    'data' => [$planOrders, $extraPlanOrders],
+                    'backgroundColor' => ['#004b8d', '#00bfa5']
+                ]]
+            ],
+            'options' => [
+                'legend' => ['display' => false],
+                'scales' => ['yAxes' => [['ticks' => ['beginAtZero' => true, 'fontSize' => 8]]], 'xAxes' => [['ticks' => ['fontSize' => 8]]]],
+                'plugins' => ['datalabels' => ['color' => '#ffffff', 'font' => ['weight' => 'bold', 'size' => 10], 'anchor' => 'end', 'align' => 'start']]
+            ]
+        ];
+
+        $typeConfig = [
+            'type' => 'doughnut',
+            'data' => [
+                'labels' => array_keys($ordersByType),
+                'datasets' => [[
+                    'data' => array_values($ordersByType),
+                    'backgroundColor' => ['#5c6bc0', '#26a69a', '#ffca28', '#ef5350', '#8d6e63', '#78909c']
+                ]]
+            ],
+            'options' => [
+                'legend' => ['position' => 'right', 'labels' => ['fontSize' => 8]],
+                'plugins' => ['datalabels' => ['color' => '#fff', 'font' => ['weight' => 'bold', 'size' => 8]]]
+            ]
+        ];
+
+        $deptLabels = array_keys($departmentCompletion);
+        $deptValues = array_values($departmentCompletion);
+        $deptCompConfig = [
+            'type' => 'pie',
+            'data' => [
+                'labels' => $deptLabels,
+                'datasets' => [[
+                    'data' => $deptValues,
+                    'backgroundColor' => ['#004b8d', '#5c6bc0', '#26a69a', '#ffca28', '#ef5350', '#78909c']
+                ]]
+            ],
+            'options' => [
+                'legend' => ['position' => 'right', 'labels' => ['fontSize' => 8]],
+                'plugins' => ['datalabels' => ['color' => '#fff', 'font' => ['weight' => 'bold', 'size' => 8]]]
+            ]
+        ];
+
+        $arrContextOptions = ["ssl" => ["verify_peer" => false, "verify_peer_name" => false]];
+
+        $pieUrl = "https://quickchart.io/chart?width=250&height=140&c=" . urlencode(json_encode($pieConfig));
+        $pieData = @file_get_contents($pieUrl, false, stream_context_create($arrContextOptions));
+        $pieBase64 = $pieData ? 'data:image/png;base64,' . base64_encode($pieData) : '';
+
+        $barUrl = "https://quickchart.io/chart?width=250&height=140&c=" . urlencode(json_encode($barConfig));
+        $barData = @file_get_contents($barUrl, false, stream_context_create($arrContextOptions));
+        $barBase64 = $barData ? 'data:image/png;base64,' . base64_encode($barData) : '';
+
+        $typeUrl = "https://quickchart.io/chart?width=250&height=140&c=" . urlencode(json_encode($typeConfig));
+        $typeData = @file_get_contents($typeUrl, false, stream_context_create($arrContextOptions));
+        $typeBase64 = $typeData ? 'data:image/png;base64,' . base64_encode($typeData) : '';
+
+        $deptCompUrl = "https://quickchart.io/chart?width=250&height=140&c=" . urlencode(json_encode($deptCompConfig));
+        $deptCompData = @file_get_contents($deptCompUrl, false, stream_context_create($arrContextOptions));
+        $deptCompBase64 = $deptCompData ? 'data:image/png;base64,' . base64_encode($deptCompData) : '';
+
+        return [
+            'generatedAt' => Carbon::now('America/Caracas')->format('d/m/Y H:i'),
+            'dateFrom' => $yesterday,
+            'dateTo' => $yesterday,
+            'tasksByStatus' => $tasksByStatus,
+            'ordersByType' => $ordersByType,
+            'planVsExtra' => $planVsExtra,
+            'generalCompletionPercentage' => $generalCompletionPercentage,
+            'isAdmin' => $isAdmin,
+            'todayTasks' => $todayTasks,
+            'todayDate' => $today,
+            'yesterdayTasks' => $yesterdayTasks,
+            'priorityFilter' => $priorityParam,
+            'pieBase64' => $pieBase64,
+            'barBase64' => $barBase64,
+            'typeBase64' => $typeBase64,
+            'deptCompBase64' => $deptCompBase64,
+            'departmentCompletion' => $departmentCompletion,
+            'ordersByTypePercent' => $ordersByTypePercent,
+        ];
+    }
+
     private function buildAdminStatsPdfData(Request $request): array
     {
         OrderTask::markOverduePendingAsNotCompleted();

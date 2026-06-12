@@ -72,6 +72,7 @@ class WorkOrderController extends Controller
         'type'             => 'required|in:CORRECTIVO,PREVENTIVO,PREDICTIVO,DETECTIVO',
         'impact'           => 'required|numeric',
         'accion_requerida' => 'required|string',
+        'priority'         => 'required|in:Nivel 1,Nivel 2,Prioridad alta,Actividad critica',
         'date'             => 'required|date',
         'time_start'       => 'nullable|date_format:H:i',
         'time_end'         => 'nullable|date_format:H:i',
@@ -110,6 +111,7 @@ class WorkOrderController extends Controller
 
         $workOrder->tasks()->create([
             'discipline_id' => $disciplineId,
+            'priority'      => $request->priority,
             'date'          => $request->date,
             'time_start'    => $dateTimeStart,
             'time_end'      => $dateTimeEnd,

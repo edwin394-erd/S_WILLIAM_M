@@ -358,10 +358,11 @@
                 
                 {{-- Encabezado de Tabla (Oculto en Móvil, visible en Desktop) --}}
                 <div class="hidden md:grid grid-cols-12 bg-slate-600 text-white font-bold uppercase p-2 items-center text-center">
-                    <div class="col-span-1">AR</div>
+                    <div class="col-span-1 w-14">AR</div>
                     <div class="col-span-2 border-l border-gray-500">ODM / COD</div>
                     <div class="col-span-1 border-l border-gray-500 text-left px-2">Tipo</div>
-                    <div class="col-span-3 border-l border-gray-500 text-left px-2">Acción Requerida</div>
+                    <div class="col-span-1 border-l border-gray-500 text-left px-2">Prioridad</div>
+                    <div class="col-span-2 border-l border-gray-500 text-left px-2">Acción Requerida</div>
                     <div class="col-span-2 border-l border-gray-500 text-left px-2">Instalación</div>
                     <div class="col-span-1 border-l border-gray-500 text-right px-2">Impacto</div>
                     <div class="col-span-1 border-l border-gray-500 text-right px-2">Equipo</div>
@@ -370,7 +371,7 @@
 
                 {{-- Fila Principal (Estilo Tarjeta en Móvil, Fila en Desktop) --}}
                 <div class="flex flex-col md:grid md:grid-cols-12 md:items-center font-bold bg-white p-4 md:p-2 gap-2 md:gap-0">
-                    <div class="col-span-1 text-left md:text-center text-red-600" x-text="order.is_high_risk ? 'ALTO RIESGO' : ''"></div>
+                    <div class="col-span-1 text-left md:text-center text-red-600 w-14 truncate text-[10px] md:text-xs" x-text="order.is_high_risk ? 'ALTO RIESGO' : ''"></div>
                     
                     <div class="col-span-2 md:px-2 md:border-l md:border-gray-200 md:text-center flex items-center justify-between md:justify-center gap-2">
                         <div class="text-slate-700 text-sm md:text-xs" x-text="order.odm_number"></div>
@@ -386,8 +387,12 @@
                         <span class="md:hidden font-normal block text-gray-400">Tipo:</span> 
                         <span x-text="order.type"></span>
                     </div>
+                    <div class="col-span-1 md:px-2 md:border-l md:border-gray-200 text-gray-500 md:text-slate-900 text-[10px] md:text-xs">
+                        <span class="md:hidden font-normal block text-gray-400">Prioridad:</span>
+                        <span x-text="order.tasks?.[0]?.priority ?? 'Sin prioridad'"></span>
+                    </div>
                     
-                    <div class="col-span-3 md:px-2 md:border-l md:border-gray-200 uppercase text-slate-800 md:truncate">
+                    <div class="col-span-2 md:px-2 md:border-l md:border-gray-200 uppercase text-slate-800 md:truncate">
                         <span class="md:hidden font-normal block text-gray-400 normal-case">Acción Requerida:</span>
                         <span x-text="order.accion_requerida"></span>
                     </div>
@@ -468,7 +473,7 @@
                 {{-- Sub-filas (Disciplinas / Tareas Responsivas) --}}
                 <template x-for="task in order.tasks" :key="task.id">
                     <div class="flex flex-col md:grid md:grid-cols-12 md:items-center text-[10px] text-gray-500 bg-slate-50 p-3 md:p-1.5 border-t border-gray-200 md:border-gray-100 italic gap-1 md:gap-0">
-                        <div class="col-span-1 hidden md:block"></div>
+                        <div class="col-span-1 hidden md:block w-14"></div>
                         
                         <div class="col-span-2 md:px-2 font-bold text-gray-700 text-left md:text-center" x-text="'A-' + order.odm_number.toString().slice(-6)"></div>
                         
@@ -476,11 +481,15 @@
                         
                         <div class="col-span-4 md:px-2 md:border-l md:border-gray-200 my-1 md:my-0 md:truncate" x-text="order.accion_requerida"></div>
                         
-                        <div class="col-span-3 md:px-2 md:border-l md:border-gray-200 flex items-center justify-between md:justify-start font-mono font-medium text-xs md:text-[10px] bg-white md:bg-transparent p-1.5 md:p-0 rounded border md:border-0 border-gray-100 gap-1">
+                        <div class="col-span-3 md:px-2 md:border-l md:border-gray-200 flex flex-col md:flex-row items-start md:items-center justify-between md:justify-start font-mono font-medium text-xs md:text-[10px] bg-white md:bg-transparent p-1.5 md:p-0 rounded border md:border-0 border-gray-100 gap-1">
                             <span class="md:hidden font-sans not-italic text-gray-400">Programación:</span>
                             <div>
                                 <span class="text-gray-900" x-text="task.date.includes('T') ? task.date.split('T')[0].split('-').reverse().join('/') : task.date"></span> | 
                                 <span class="text-slate-800" x-text="(task.time_start.includes('T') ? task.time_start.split('T')[1].slice(0,5) : task.time_start.slice(0,5)) + ' - ' + (task.time_end.includes('T') ? task.time_end.split('T')[1].slice(0,5) : task.time_end.slice(0,5))"></span>
+                            </div>
+                            <div class="text-[10px] text-slate-600 md:text-right">
+                                <span class="font-semibold">Prioridad:</span>
+                                <span x-text="task.priority ?? 'Sin prioridad'"></span>
                             </div>
                         </div>
                         

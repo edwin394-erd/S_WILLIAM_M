@@ -100,6 +100,7 @@ class DemoDataSeeder extends Seeder
                     $task = OrderTask::create([
                         'work_order_id' => $workOrder->id,
                         'discipline_id' => $taskDiscipline->id,
+                        'priority' => $faker->randomElement(['Nivel 1', 'Nivel 2', 'Prioridad alta', 'Actividad critica']),
                         'date' => $taskStart->format('Y-m-d'),
                         'time_start' => $taskStart->format('Y-m-d H:i:s'),
                         'time_end' => $taskEnd->format('Y-m-d H:i:s'),
