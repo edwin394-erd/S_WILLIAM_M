@@ -89,6 +89,7 @@
     const disciplineHiddenInputs = document.getElementById('discipline-hidden-inputs');
 
     let selectedDisciplineIds = @json(old('discipline_ids', $user->disciplines->pluck('id')->toArray()));
+    selectedDisciplineIds = selectedDisciplineIds.map(String);
     const initialRole = '{{ old('role', $user->role) }}';
     const initialDepartmentId = '{{ old('department_id', $user->department_id) }}';
 
@@ -159,7 +160,7 @@
     }
 
     function removeDisciplineId(id) {
-        selectedDisciplineIds = selectedDisciplineIds.filter(value => value !== id);
+        selectedDisciplineIds = selectedDisciplineIds.filter(value => value !== String(id));
         buildHiddenInputs();
         renderDisciplineTags();
     }
