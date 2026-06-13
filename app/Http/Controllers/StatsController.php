@@ -681,7 +681,6 @@ class StatsController extends Controller
             ->join('order_tasks', 'work_orders.id', '=', 'order_tasks.work_order_id')
             ->when($departmentId, fn($q) => $q->where('order_tasks.department_id', $departmentId))
             ->whereDate('order_tasks.date', $yesterday)
-            ->where('order_tasks.status', 'COMPLETADO')
             ->when($priorities, fn($q) => $q->whereIn('order_tasks.priority', $priorities));
 
         $ordersByType = $ordersByTypeQuery
@@ -811,17 +810,28 @@ class StatsController extends Controller
         $deptLabels = array_keys($departmentCompletion);
         $deptValues = array_values($departmentCompletion);
         $deptCompConfig = [
-            'type' => 'pie',
+            'type' => 'bar',
             'data' => [
                 'labels' => $deptLabels,
                 'datasets' => [[
+                    'label' => 'Cumplimiento %',
                     'data' => $deptValues,
                     'backgroundColor' => ['#004b8d', '#5c6bc0', '#26a69a', '#ffca28', '#ef5350', '#78909c']
                 ]]
             ],
             'options' => [
-                'legend' => ['position' => 'right', 'labels' => ['fontSize' => 8]],
-                'plugins' => ['datalabels' => ['color' => '#fff', 'font' => ['weight' => 'bold', 'size' => 8]]]
+                'legend' => ['display' => false],
+                'scales' => [
+                    'yAxes' => [[
+                        'ticks' => ['beginAtZero' => true, 'max' => 100, 'fontSize' => 8],
+                        'scaleLabel' => ['display' => true, 'labelString' => 'Cumplimiento %', 'fontSize' => 9]
+                    ]],
+                    'xAxes' => [[
+                        'ticks' => ['fontSize' => 8],
+                        'scaleLabel' => ['display' => true, 'labelString' => 'Departamento', 'fontSize' => 9]
+                    ]]
+                ],
+                'plugins' => ['datalabels' => ['color' => '#ffffff', 'font' => ['weight' => 'bold', 'size' => 8], 'anchor' => 'end', 'align' => 'start']]
             ]
         ];
 
