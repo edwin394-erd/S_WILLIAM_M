@@ -67,17 +67,17 @@
 
                         @if ($isAdminPlan)
                             <li class="pl-4">
-                                <a href="{{ route('admin.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas</a>
+                                <a href="{{ route('admin.stats') }}" class="{{ request()->routeIs('admin.stats*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Estadísticas</a>
                             </li>
                             <li class="pl-4">
-                                <a href="{{ route('admin.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                                <a href="{{ route('admin.workorders.historial') }}" class="{{ request()->routeIs('admin.workorders.historial*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Historial</a>
                             </li>
                         @elseif ($isSupervisor)
                             <li class="pl-4">
-                                <a href="{{ route('supervisor.stats') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Estadísticas</a>
+                                <a href="{{ route('supervisor.stats') }}" class="{{ request()->routeIs('supervisor.stats*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Estadísticas</a>
                             </li>
                              <li class="pl-4">
-                                <a href="{{ route('supervisor.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                                <a href="{{ route('supervisor.workorders.historial') }}" class="{{ request()->routeIs('supervisor.workorders.historial*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Historial</a>
                             </li>
                         @endif
                     @endif
@@ -85,26 +85,26 @@
                     @if ($isAdminPlan || $isSupervisor)
                         <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Operaciones</li>
                         <li class="pl-4">
-                            <a href="{{ $isSupervisor ? route('supervisor.worksheets') : route('admin.worksheets.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Sábanas de Órdenes</a>
+                            <a href="{{ $isSupervisor ? route('supervisor.worksheets') : route('admin.worksheets.index') }}" class="{{ request()->routeIs($isSupervisor ? 'supervisor.worksheets*' : 'admin.worksheets*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Sábanas de Órdenes</a>
                         </li>
                     @endif
 
                     @if ($role === 'admin')
                         <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Configuración</li>
-                        <li class="pl-4"><a href="{{ route('admin.departments.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Departamentos</a></li>
-                        <li class="pl-4"><a href="{{ route('admin.disciplines.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Disciplinas</a></li>
-                        <li class="pl-4"><a href="{{ route('admin.installations.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Instalaciones</a></li>
-                        <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Equipos</a></li>
-                        <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-semibold">Gestión de Usuarios</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.departments.index') }}" class="{{ request()->routeIs('admin.departments*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Departamentos</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.disciplines.index') }}" class="{{ request()->routeIs('admin.disciplines*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Disciplinas</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.installations.index') }}" class="{{ request()->routeIs('admin.installations*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Instalaciones</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="{{ request()->routeIs('admin.equipment*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Equipos</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Gestión de Usuarios</a></li>
                     @endif
 
                     @if ($role === 'tecnico')
                         <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Ejecución</li>
                         <li class="pl-4">
-                            <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="text-gray-600 hover:text-pdvsa-red py-1 block font-bold">Mis Actividades</a>
+                            <a href="{{ route('tecnico.actividades', auth()->user()->discipline_id) }}" class="{{ request()->routeIs('tecnico.actividades*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Mis Actividades</a>
                         </li>
                         <li class="pl-4">
-                            <a href="{{ route('tecnico.workorders.historial') }}" class="text-gray-600 hover:text-pdvsa-red py-1 block">Historial</a>
+                            <a href="{{ route('tecnico.workorders.historial') }}" class="{{ request()->routeIs('tecnico.workorders.historial*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Historial</a>
                         </li>
                     @endif
                     {{-- <li class="pl-4 mt-4">

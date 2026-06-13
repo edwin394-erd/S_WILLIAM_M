@@ -4,6 +4,11 @@
 
 @section('content')
 <div class="bg-white p-6 rounded-lg w-full max-w-md border border-gray-300">
+    @php
+        $selectedDepartmentId = old('department_id', $user->department_id);
+        $initialDisciplineOptions = $departments_with_disciplines->firstWhere('id', $selectedDepartmentId)?->disciplines->pluck('name', 'id')->toArray() ?? [];
+    @endphp
+
     <form action="{{ route('admin.users.update', $user->id) }}" method="POST">
         @csrf
         @method('PUT')
@@ -40,7 +45,7 @@
                         id="select-discipline-single"
                         name="discipline_id" 
                         label="Disciplina" 
-                        :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
+                        :options="$initialDisciplineOptions" 
                         selected="{{ old('discipline_id', $user->discipline_id) }}"
                         placeholder="Seleccione"
                         buscable="true"
@@ -161,7 +166,7 @@
 
     function updateDisciplineOptions(departmentId) {
         const selectedDept = departments.find(d => d.id == departmentId);
-        const options = selectedDept ? selectedDept.disciplines : departments.flatMap(d => d.disciplines);
+        const options = selectedDept ? selectedDept.disciplines : [];
         setSingleOptions(options);
         setMultiOptions(options);
 

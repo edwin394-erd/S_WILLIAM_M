@@ -3,9 +3,10 @@
 @section('title', 'Crear Usuario')
 @section('content')
 <div class="bg-white p-6 rounded-lg w-full max-w-md border border-gray-300">
-    {{-- <h1 class="text-2xl font-bold text-gray-800 mb-4">Crear Usuario</h1> --}}
-    <form action="{{ route('admin.users.store') }}" method="POST">
-        @csrf
+    @php
+        $selectedDepartmentId = old('department_id', '');
+        $initialDisciplineOptions = $departments_with_disciplines->firstWhere('id', $selectedDepartmentId)?->disciplines->pluck('name', 'id')->toArray() ?? [];
+    @endphp
         <div class="mb-4">
             <x-input :label="'Nombre'" 
                      :name="'name'" 
@@ -48,7 +49,7 @@
                             id="select-discipline-single"
                             name="discipline_id" 
                             label="Disciplina" 
-                            :options="$departments_with_disciplines->flatMap->disciplines->pluck('name','id')->toArray()" 
+                            :options="$initialDisciplineOptions" 
                             selected="{{ old('discipline_id', '') }}"
                             placeholder="Seleccione"
                             buscable="true"
