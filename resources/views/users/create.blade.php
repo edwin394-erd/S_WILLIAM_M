@@ -7,6 +7,8 @@
         $selectedDepartmentId = old('department_id', '');
         $initialDisciplineOptions = $departments_with_disciplines->firstWhere('id', $selectedDepartmentId)?->disciplines->pluck('name', 'id')->toArray() ?? [];
     @endphp
+    <form action="{{ route('admin.users.store') }}" method="POST">
+        @csrf
         <div class="mb-4">
             <x-input :label="'Nombre'" 
                      :name="'name'" 
