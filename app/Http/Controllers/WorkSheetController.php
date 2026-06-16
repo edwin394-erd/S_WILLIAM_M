@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\WorkSheet;
 use App\Models\Department;
+use App\Services\AuditLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Http;
 use App\Models\OrderTask;
@@ -128,12 +129,18 @@ class WorkSheetController extends Controller
             return back()->withErrors(['department_id' => 'Ya existe una sábana para este departamento en esta semana y año.'])->withInput();
         }
 
-        WorkSheet::create([
+        $worksheet = WorkSheet::create([
             'week_number' => $request->week_number,
             'start_date' => $request->start_date,
             'end_date' => $request->end_date,
             'department_id' => $request->department_id,
         ]);
+
+        AuditLogService::record(
+            "Sábana creada: {$worksheet->id}",
+            $worksheet,
+            ['new' => $worksheet->only(['week_number', 'start_date', 'end_date', 'department_id'])]
+        );
 
         return redirect()->route('admin.worksheets.index')->with('success', 'Sabana creada exitosamente.');
     }
@@ -178,14 +185,20 @@ class WorkSheetController extends Controller
 
     public function destroy($id)
     {
-        $workorders = WorkSheet::findOrFail($id)->workOrders;
+        $worksheet = WorkSheet::findOrFail($id);
+        $oldValues = $worksheet->only(['week_number', 'start_date', 'end_date', 'department_id']);
+        $workorders = $worksheet->workOrders;
         foreach ($workorders as $order) {
             $order->tasks()->delete();
             $order->delete();
         }
 
+        AuditLogService::record(
+            "Sábana eliminada: {$worksheet->id}",
+            $worksheet,
+            ['old' => $oldValues]
+        );
 
-        $worksheet = WorkSheet::findOrFail($id);
         $worksheet->delete();
 
         return redirect()->route('admin.worksheets.index')->with('success', 'Sabana eliminada exitosamente.');

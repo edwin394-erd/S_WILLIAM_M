@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\Discipline;
+use App\Services\AuditLogService;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
@@ -76,6 +77,8 @@ class UserController extends Controller
         }
 
         $user = User::findOrFail($id);
+        $oldValues = $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']);
+
         $user->name = $request->name;
         $user->email = $request->email;
         $user->role = $request->role;
@@ -84,8 +87,18 @@ class UserController extends Controller
         if ($request->filled('password')) {
             $user->password = $request->password; // casted in model
         }
+
         $user->save();
         $user->disciplines()->sync($disciplineIds);
+
+        AuditLogService::record(
+            "Usuario actualizado: {$user->name}",
+            $user,
+            [
+                'old' => $oldValues,
+                'new' => $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']),
+            ]
+        );
 
         return redirect()->route('admin.users.index')->with('success', 'Usuario actualizado correctamente.');
     }
@@ -140,11 +153,30 @@ class UserController extends Controller
 
         $user->disciplines()->sync($disciplineIds);
 
+        AuditLogService::record(
+            "Usuario creado: {$user->name}",
+            $user,
+            [
+                'new' => $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']),
+            ]
+        );
+
         return redirect()->route('admin.users.index')->with('success', 'Usuario creado exitosamente.');
     }
 
     public function destroy($id)
     {
+        $user = User::find($id);
+        if ($user) {
+            AuditLogService::record(
+                "Usuario eliminado: {$user->name}",
+                $user,
+                [
+                    'old' => $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']),
+                ]
+            );
+        }
+
         User::destroy($id);
         return redirect()->route('admin.users.index')->with('success', 'Usuario eliminado exitosamente.');
     }

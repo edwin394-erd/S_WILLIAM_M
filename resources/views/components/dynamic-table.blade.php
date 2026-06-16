@@ -11,7 +11,12 @@
     'pdfRoute' => null,      // nombre de ruta para generar PDF (opcional)
     'pdfParams' => [],       // parámetros fijos para la ruta (opcional)
     'pdfMethod' => 'post',   // 'post' o 'get'
-    'pdfLabel' => 'Generar PDF'
+    'pdfLabel' => 'Generar PDF',
+    'resourceFilter' => null,
+    'actionFilter' => null,
+    'userFilter' => null,
+    'dateFromFilter' => null,
+    'dateToFilter' => null,
 ])
 
 @php
@@ -30,6 +35,11 @@ x-cloak
         page: 1, 
         perPage: 8,
         records: {{ json_encode($records) }},
+        resourceFilter: @js($resourceFilter),
+        actionFilter: @js($actionFilter),
+        userFilter: @js($userFilter),
+        dateFromFilter: @js($dateFromFilter),
+        dateToFilter: @js($dateToFilter),
         showUrlTemplate: '{{ $showUrl }}',
         editUrlTemplate: '{{ $editUrl }}',
         deleteUrlTemplate: '{{ $deleteUrl }}',
@@ -54,10 +64,57 @@ x-cloak
             }
             return vals;
         },
+        parseDate(value) {
+            if (!value) return null;
+            const normalized = String(value).trim().replace(' ', 'T');
+            const date = new Date(normalized);
+            return isNaN(date.getTime()) ? null : date;
+        },
+
+        toDateStart(value) {
+            if (!value) return null;
+            const date = new Date(`${value}T00:00:00`);
+            return isNaN(date.getTime()) ? null : date;
+        },
+
+        toDateEnd(value) {
+            if (!value) return null;
+            const date = new Date(`${value}T23:59:59`);
+            return isNaN(date.getTime()) ? null : date;
+        },
+
         get filteredRecords() {
-            if (this.search === '') return this.records;
-            const q = this.search.toLowerCase();
+            const q = this.search.trim().toLowerCase();
+            const startDate = this.toDateStart(this.dateFromFilter);
+            const endDate = this.toDateEnd(this.dateToFilter);
+
             return this.records.filter(r => {
+                if (this.resourceFilter && String(r.subject_type) !== String(this.resourceFilter)) {
+                    return false;
+                }
+
+                if (this.actionFilter && String(r.action_group) !== String(this.actionFilter)) {
+                    return false;
+                }
+
+                if (this.userFilter) {
+                    const userId = r.user?.id ?? r.user_id;
+                    if (String(userId) !== String(this.userFilter)) {
+                        return false;
+                    }
+                }
+
+                if (startDate || endDate) {
+                    const createdAt = this.parseDate(r.created_at);
+                    if (!createdAt) return false;
+                    if (startDate && createdAt < startDate) return false;
+                    if (endDate && createdAt > endDate) return false;
+                }
+
+                if (q === '') {
+                    return true;
+                }
+
                 const values = this.extractValues(r);
                 return values.some(v => v.toLowerCase().includes(q));
             });
@@ -69,6 +126,28 @@ x-cloak
         },
         get totalPages() {
             return Math.ceil(this.filteredRecords.length / this.perPage) || 1;
+        },
+        handleFilterUpdate(detail) {
+            if (!detail || !detail.name) return;
+
+            const mapping = {
+                resource: 'resourceFilter',
+                action: 'actionFilter',
+                user_id: 'userFilter',
+                date_from: 'dateFromFilter',
+                date_to: 'dateToFilter',
+                resourceFilter: 'resourceFilter',
+                actionFilter: 'actionFilter',
+                userFilter: 'userFilter',
+                dateFromFilter: 'dateFromFilter',
+                dateToFilter: 'dateToFilter',
+            };
+
+            const target = mapping[detail.name] || detail.name;
+            if (target in this) {
+                this[target] = detail.value;
+                this.page = 1;
+            }
         },
         getShowUrl(id) { return this.showUrlTemplate.replace('{{ $dummyId }}', id); },
         getEditUrl(id) { return this.editUrlTemplate.replace('{{ $dummyId }}', id); },
@@ -93,7 +172,7 @@ x-cloak
             }
             return value;
         }
-     }">
+     }" @audit-log-filter-update.window="handleFilterUpdate($event.detail)" @audit-log-filter-refresh.window="page = 1">
 
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-0">
         {{-- Buscador con Alpine --}}

@@ -16,6 +16,7 @@ use App\Models\Department;
 use App\Models\Discipline;
 use App\Models\OrderTask;
 use App\Models\OrderTaskEvidence;
+use App\Services\AuditLogService;
 use Illuminate\Support\Facades\Storage;
 
 
@@ -137,7 +138,16 @@ class WorkOrderController extends Controller
         }
     }
 
-    return redirect()->route('admin.worksheets.show', $request->worksheet_id)
+AuditLogService::record(
+            "Orden creada: {$workOrder->odm_number}",
+            $workOrder,
+            [
+                'new' => $workOrder->toArray(),
+                'meta' => ['worksheet_id' => $request->worksheet_id],
+            ]
+        );
+
+        return redirect()->route('admin.worksheets.show', $request->worksheet_id)
         ->with('success', $message);
 }
 
@@ -398,11 +408,23 @@ public function reportar(Request $request, $id)
 
       
 
+        $oldTask = $task->only(['status', 'observation', 'user_report_id']);
+
         $task->update([
             'observation' => $request->observacion,
             'status' => $newStatus,
             'user_report_id' => $user_id,
         ]);
+
+        AuditLogService::record(
+            "Orden reportada: {$task->workOrder->odm_number}",
+            $task,
+            [
+                'old' => $oldTask,
+                'new' => $task->only(['status', 'observation', 'user_report_id']),
+                'meta' => ['order_task_id' => $task->id],
+            ]
+        );
 
         if ($newStatus === 'POR REVISION') {
             $this->notifyTaskReportToTelegram($task);

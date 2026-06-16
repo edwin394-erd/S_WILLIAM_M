@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Discipline;
+use App\Services\AuditLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class DisciplineController extends Controller
@@ -34,10 +35,16 @@ class DisciplineController extends Controller
             'department_id' => 'required|exists:departments,id',
         ]);
 
-        Discipline::create([
+        $discipline = Discipline::create([
             'name' => $request->name,
             'department_id' => $request->department_id,
         ]);
+
+        AuditLogService::record(
+            "Disciplina creada: {$discipline->name}",
+            $discipline,
+            ['new' => $discipline->only(['name', 'department_id'])]
+        );
 
         return redirect()->route('admin.disciplines.index')->with('success', 'Disciplina creada correctamente.');
     }
@@ -50,10 +57,20 @@ class DisciplineController extends Controller
         ]);
 
         $discipline = Discipline::findOrFail($id);
+        $oldValues = $discipline->only(['name', 'department_id']);
         $discipline->update([
             'name' => $request->name,
             'department_id' => $request->department_id,
         ]);
+
+        AuditLogService::record(
+            "Disciplina actualizada: {$discipline->name}",
+            $discipline,
+            [
+                'old' => $oldValues,
+                'new' => $discipline->only(['name', 'department_id']),
+            ]
+        );
 
         return redirect()->route('admin.disciplines.index')->with('success', 'Disciplina actualizada correctamente.');
     }
@@ -77,6 +94,13 @@ class DisciplineController extends Controller
 
             return redirect()->route('admin.disciplines.index')->with('error', $message);
         }
+
+        $oldValues = $discipline->only(['name', 'department_id']);
+        AuditLogService::record(
+            "Disciplina eliminada: {$discipline->name}",
+            $discipline,
+            ['old' => $oldValues]
+        );
 
         $discipline->delete();
 

@@ -19,6 +19,7 @@ use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\InstallationController;
 use App\Http\Controllers\StatsController;
+use App\Http\Controllers\AuditLogController;
 use App\Models\WorkOrder;
 use App\Models\OrderTask;
 use App\Models\Department;
@@ -110,6 +111,10 @@ Route::middleware(['auth', CheckPlanAdmin::class])->prefix('admin')->group(funct
     Route::post('disciplines/table/pdf', [DisciplineController::class, 'tablePdf'])->name('admin.disciplines.pdf');
     
 
+});
+
+Route::middleware(['auth', CheckAdmin::class])->prefix('admin')->group(function () {
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('admin.audit-logs.index');
 });
 
 // Grupo de rutas para los Supervisores (Solo requiere estar logueado)

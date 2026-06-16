@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Equipment;
+use App\Services\AuditLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class EquipmentController extends Controller
@@ -42,14 +43,34 @@ class EquipmentController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255']);
         $equip = Equipment::findOrFail($id);
+        $equip = \App\Models\Equipment::findOrFail($id);
+        $oldValues = $equip->only(['name']);
         $equip->update(['name' => $request->name]);
+
+        AuditLogService::record(
+            "Equipo actualizado: {$equip->name}",
+            $equip,
+            [
+                'old' => $oldValues,
+                'new' => $equip->only(['name']),
+            ]
+        );
 
         return redirect()->route('admin.equipment.index')->with('success', 'Equipo actualizado correctamente.');
     }
 
     public function destroy($id)
     {
-        Equipment::destroy($id);
+        $equipment = \App\Models\Equipment::find($id);
+        if ($equipment) {
+            AuditLogService::record(
+                "Equipo eliminado: {$equipment->name}",
+                $equipment,
+                ['old' => $equipment->only(['name'])]
+            );
+        }
+
+        \App\Models\Equipment::destroy($id);
         return redirect()->route('admin.equipment.index')->with('success', 'Equipo eliminado exitosamente.');
     }
 

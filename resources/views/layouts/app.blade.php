@@ -96,6 +96,7 @@
                         <li class="pl-4"><a href="{{ route('admin.installations.index') }}" class="{{ request()->routeIs('admin.installations*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Instalaciones</a></li>
                         <li class="pl-4"><a href="{{ route('admin.equipment.index') }}" class="{{ request()->routeIs('admin.equipment*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Equipos</a></li>
                         <li class="pl-4"><a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Gestión de Usuarios</a></li>
+                        <li class="pl-4"><a href="{{ route('admin.audit-logs.index') }}" class="{{ request()->routeIs('admin.audit-logs*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Bitácora</a></li>
                     @endif
 
                     @if ($role === 'tecnico')

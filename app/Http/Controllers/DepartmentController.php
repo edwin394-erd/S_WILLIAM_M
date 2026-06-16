@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Department;
 use App\Models\Discipline;
 use App\Models\User;
+use App\Services\AuditLogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 class DepartmentController extends Controller
 {
@@ -28,10 +29,16 @@ class DepartmentController extends Controller
             'grupo_telegram_id' => 'nullable|string|max:255',
         ]);
 
-        Department::create([
+        $department = Department::create([
             'name' => $request->name,
             'grupo_telegram_id' => $request->grupo_telegram_id,
         ]);
+
+        AuditLogService::record(
+            "Departamento creado: {$department->name}",
+            $department,
+            ['new' => $department->only(['name', 'grupo_telegram_id'])]
+        );
 
         return redirect()->route('admin.departments.index')->with('success', 'Departamento creado exitosamente.');
     }
@@ -60,10 +67,20 @@ class DepartmentController extends Controller
         ]);
 
         $department = Department::findOrFail($id);
+        $oldValues = $department->only(['name', 'grupo_telegram_id']);
         $department->update([
             'name' => $request->name,
             'grupo_telegram_id' => $request->grupo_telegram_id,
         ]);
+
+        AuditLogService::record(
+            "Departamento actualizado: {$department->name}",
+            $department,
+            [
+                'old' => $oldValues,
+                'new' => $department->only(['name', 'grupo_telegram_id']),
+            ]
+        );
 
         return redirect()->route('admin.departments.index')->with('success', 'Departamento actualizado correctamente.');
     }
@@ -90,6 +107,13 @@ class DepartmentController extends Controller
 
             return redirect()->route('admin.departments.index')->with('error', $message);
         }
+
+        $oldValues = $department->only(['name', 'grupo_telegram_id']);
+        AuditLogService::record(
+            "Departamento eliminado: {$department->name}",
+            $department,
+            ['old' => $oldValues]
+        );
 
         $department->delete();
 
