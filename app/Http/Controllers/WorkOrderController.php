@@ -128,6 +128,15 @@ class WorkOrderController extends Controller
 
     $message = "Orden {$workOrder->odm_number} creada exitosamente.";
 
+    AuditLogService::record(
+        "Orden creada: {$workOrder->odm_number}",
+        $workOrder,
+        [
+            'new' => $workOrder->attributesToArray(),
+            'meta' => ['worksheet_id' => $request->worksheet_id],
+        ]
+    );
+
     if ($workOrder->is_extraplan) {
         $sent = $this->sendExtraplanToTelegram($workOrder);
 
@@ -138,16 +147,7 @@ class WorkOrderController extends Controller
         }
     }
 
-AuditLogService::record(
-            "Orden creada: {$workOrder->odm_number}",
-            $workOrder,
-            [
-                'new' => $workOrder->toArray(),
-                'meta' => ['worksheet_id' => $request->worksheet_id],
-            ]
-        );
-
-        return redirect()->route('admin.worksheets.show', $request->worksheet_id)
+    return redirect()->route('admin.worksheets.show', $request->worksheet_id)
         ->with('success', $message);
 }
 
@@ -251,9 +251,20 @@ AuditLogService::record(
     {
         $workOrder = WorkOrder::findOrFail($id);
         $worksheet = $workOrder->workSheet;
+        $oldValues = $workOrder->attributesToArray();
     
-        DB::transaction(function () use ($workOrder) {
+        DB::transaction(function () use ($workOrder, $oldValues) {
             $workOrder->tasks()->delete();
+
+            AuditLogService::record(
+                "Orden eliminada: {$workOrder->odm_number}",
+                $workOrder,
+                [
+                    'old' => $oldValues,
+                    'meta' => ['worksheet_id' => $workOrder->work_sheet_id],
+                ]
+            );
+
             $workOrder->delete();
         });
 

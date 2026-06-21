@@ -50,6 +50,9 @@ class UserController extends Controller
             'password' => 'nullable|string|min:6',
         ];
 
+        $user = User::findOrFail($id);
+        $departmentIdForValidation = $request->input('department_id') ?: $user->department_id;
+
         if (in_array($request->role, ['supervisor', 'tecnico'], true)) {
             $rules['department_id'] = 'required|exists:departments,id';
         }
@@ -57,7 +60,7 @@ class UserController extends Controller
         if ($request->role === 'tecnico') {
             $rules['discipline_id'] = [
                 'required',
-                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+                Rule::exists('disciplines', 'id')->where('department_id', $departmentIdForValidation),
             ];
         }
 
@@ -65,38 +68,47 @@ class UserController extends Controller
             $rules['discipline_ids'] = 'required|array|min:1';
             $rules['discipline_ids.*'] = [
                 'required',
-                Rule::exists('disciplines', 'id')->where('department_id', $request->department_id),
+                Rule::exists('disciplines', 'id')->where('department_id', $departmentIdForValidation),
             ];
         }
 
         $request->validate($rules);
 
         $disciplineIds = $request->input('discipline_ids', []);
-        if ($request->filled('discipline_id') && empty($disciplineIds)) {
-            $disciplineIds = [$request->discipline_id];
+        $disciplineId = $request->input('discipline_id', $user->discipline_id);
+
+        if ($request->role !== 'supervisor') {
+            $disciplineIds = $disciplineId ? [$disciplineId] : [];
+        } elseif ($request->filled('discipline_id') && empty($disciplineIds)) {
+            $disciplineIds = [$disciplineId];
         }
 
         $user = User::findOrFail($id);
         $oldValues = $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']);
+        $oldValues['disciplines'] = $user->disciplines->pluck('name')->all();
 
         $user->name = $request->name;
         $user->email = $request->email;
         $user->role = $request->role;
         $user->department_id = $request->department_id ?: null;
-        $user->discipline_id = $disciplineIds[0] ?? null;
+        $user->discipline_id = $disciplineId ?: null;
         if ($request->filled('password')) {
             $user->password = $request->password; // casted in model
         }
 
         $user->save();
         $user->disciplines()->sync($disciplineIds);
+        $user->load('disciplines');
+
+        $newValues = $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']);
+        $newValues['disciplines'] = $user->disciplines->pluck('name')->all();
 
         AuditLogService::record(
             "Usuario actualizado: {$user->name}",
             $user,
             [
                 'old' => $oldValues,
-                'new' => $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']),
+                'new' => $newValues,
             ]
         );
 
@@ -152,12 +164,16 @@ class UserController extends Controller
         ]);
 
         $user->disciplines()->sync($disciplineIds);
+        $user->load('disciplines');
+
+        $newValues = $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']);
+        $newValues['disciplines'] = $user->disciplines->pluck('name')->all();
 
         AuditLogService::record(
             "Usuario creado: {$user->name}",
             $user,
             [
-                'new' => $user->only(['name', 'email', 'role', 'department_id', 'discipline_id']),
+                'new' => $newValues,
             ]
         );
 

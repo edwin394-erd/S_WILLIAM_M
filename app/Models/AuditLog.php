@@ -4,9 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Department;
+use App\Models\Discipline;
+use App\Models\Equipment;
+use App\Models\Installation;
 use App\Models\User;
+use App\Models\WorkOrder;
+use App\Models\WorkSheet;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Str;
 
 class AuditLog extends Model
 {
@@ -70,6 +77,39 @@ class AuditLog extends Model
         'otro' => [],
     ];
 
+    private static array $fieldLabels = [
+        'user_id' => 'Usuario',
+        'subject_type' => 'Recurso',
+        'subject_id' => 'ID Recurso',
+        'work_sheet_id' => 'Sábana',
+        'department_id' => 'Departamento',
+        'discipline_id' => 'Disciplina',
+        'installation_id' => 'Instalación',
+        'equipment_id' => 'Equipo',
+        'work_order_id' => 'Orden de Trabajo',
+        'role' => 'Rol',
+        'name' => 'Nombre',
+        'email' => 'Email',
+        'impact' => 'Impacto',
+        'accion_requerida' => 'Acción requerida',
+        'priority' => 'Prioridad',
+        'date' => 'Fecha',
+        'time_start' => 'Hora inicio',
+        'time_end' => 'Hora fin',
+        'is_high_risk' => 'Alto riesgo',
+        'is_extraplan' => 'Extraplan',
+        'grupo_telegram_id' => 'ID Telegram',
+        'week_number' => 'Número de semana',
+        'start_date' => 'Fecha inicio',
+        'end_date' => 'Fecha fin',
+        'codigo' => 'Código',
+        'observacion' => 'Observación',
+        'status' => 'Estado',
+        'disciplines' => 'Disciplinas',
+        'old_values' => 'Antes',
+        'new_values' => 'Después',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -88,6 +128,80 @@ class AuditLog extends Model
     public function getNewValuesTextAttribute(): string
     {
         return $this->formatJsonSummary($this->new_values);
+    }
+
+    private static function getFieldLabel(string $field): string
+    {
+        return self::$fieldLabels[$field] ?? Str::title(str_replace(['_', 'id'], [' ', ''], $field));
+    }
+
+    private function formatJsonSummary(?array $values): string
+    {
+        if (empty($values)) {
+            return '';
+        }
+
+        return collect($values)
+            ->map(function ($value, $key) {
+                $label = self::getFieldLabel($key);
+                $value = $this->resolveReadableValue($key, $value);
+
+                if (is_array($value)) {
+                    $value = collect($value)->map(fn ($item) => is_array($item) ? json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $item)->implode(', ');
+                }
+
+                return "{$label}: {$value}";
+            })
+            ->values()
+            ->implode(' | ');
+    }
+
+    private function resolveReadableValue(string $key, $value)
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_array($value)) {
+            if ($key === 'disciplines') {
+                return collect($value)->implode(', ');
+            }
+
+            return collect($value)->map(function ($item) use ($key) {
+                return $this->resolveReadableValue($key, $item);
+            })->all();
+        }
+
+        if (in_array($key, ['department_id', 'installation_id', 'equipment_id', 'work_sheet_id', 'work_order_id', 'discipline_id', 'user_id'], true)) {
+            return $this->resolveRelationName($key, $value);
+        }
+
+        return $value;
+    }
+
+    private function resolveRelationName(string $key, $value)
+    {
+        static $cache = [];
+
+        $cacheKey = "{$key}:{$value}";
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
+        }
+
+        $resolved = match ($key) {
+            'department_id' => Department::find($value)?->name,
+            'discipline_id' => Discipline::find($value)?->name,
+            'installation_id' => Installation::find($value)?->name,
+            'equipment_id' => Equipment::find($value)?->name,
+            'work_sheet_id' => WorkSheet::find($value)?->week_label,
+            'work_order_id' => WorkOrder::find($value)?->odm_number,
+            'user_id' => User::find($value)?->name,
+            default => null,
+        };
+
+        $cache[$cacheKey] = $resolved ?? $value;
+
+        return $cache[$cacheKey];
     }
 
     public function getResourceNameAttribute(): string
@@ -112,23 +226,5 @@ class AuditLog extends Model
         }
 
         return 'otro';
-    }
-
-    private function formatJsonSummary(?array $values): string
-    {
-        if (empty($values)) {
-            return '';
-        }
-
-        return collect($values)
-            ->map(function ($value, $key) {
-                if (is_array($value)) {
-                    $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                }
-
-                return "{$key}: {$value}";
-            })
-            ->values()
-            ->implode(' | ');
     }
 }
