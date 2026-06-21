@@ -11,14 +11,12 @@
         dateFromFilter: '{{ $selectedDateFrom ?? '' }}', 
         dateToFilter: '{{ $selectedDateTo ?? '' }}' 
     }">
-    <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {{-- <div>
             <h1 class="text-xl font-semibold text-heading">Bitácora de Movimientos</h1>
             <p class="text-sm text-slate-500">Filtra los registros sin ocupar espacio permanente en la página.</p>
         </div> --}}
-        <button type="button" @click="showFilters = true" class="inline-flex items-center justify-center rounded-base border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-gray-100">
-            Filtrar resultados
-        </button>
+
     </div>
 
     <div x-show="showFilters" x-cloak @keydown.escape.window="showFilters = false" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -120,6 +118,12 @@
         :eliminar="false"
         :editar="false"
         :ver="false"
-    />
+    >
+        <x-slot name="searchActions">
+            <button type="button" @click="showFilters = true" class="inline-flex items-center justify-center rounded-base border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-gray-100">
+                Filtrar resultados
+            </button>
+        </x-slot>
+    </x-dynamic-table>
 </div>
 @endsection

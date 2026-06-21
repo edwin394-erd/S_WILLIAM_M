@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<section class="dark:bg-gray-900 flex items-center justify-center py-10 x-cloak w-full min-h-screen">
-    <div class="flex flex-col md:flex-row bg-white rounded-lg shadow-md overflow-hidden w-full max-w-4xl justify-center x-cloak h-[500px]">
+<section class="dark:bg-gray-900 flex items-center justify-center py-10 x-cloak w-full min-h-full">
+    <div class="flex flex-col md:flex-row bg-white rounded-lg shadow-md overflow-hidden w-full max-w-4xl justify-center x-cloak min-h-[500px]">
 
         {{-- Formulario de Login --}}
         <div class="p-6 space-y-4 md:space-y-6 sm:p-8 w-full md:w-1/2 x-cloak">

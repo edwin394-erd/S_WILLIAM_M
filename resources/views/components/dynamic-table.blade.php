@@ -177,19 +177,29 @@ x-cloak
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-0">
         {{-- Buscador con Alpine --}}
         @if($buscable)
-            <div class="relative">
-                <input 
-                    type="text" 
-                    x-model="search"
-                    @input="page = 1"
-                    placeholder="Buscar en la tabla..." 
-                    class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
-                >
+            <div class="relative flex-1 min-w-0">
+                <div class="flex items-center gap-3">
+                    <input 
+                        type="text" 
+                        x-model="search"
+                        @input="page = 1"
+                        placeholder="Buscar en la tabla..." 
+                        class="block w-full md:w-80 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
+                    >
+                    <div class="hidden md:block">
+                        {{ $searchActions ?? '' }}
+                    </div>
+                </div>
             </div>
         @endif
 
         {{-- Controles superiores: Paginación y Agregar --}}
         <div class="flex items-center gap-4">
+            @if($buscable)
+                <div class="block md:hidden">
+                    {{ $searchActions ?? '' }}
+                </div>
+            @endif
             <div class="flex items-center gap-2" x-show="records.length > 0" style="display: none;">
                 <label for="perPage" class="text-sm text-gray-600">Mostrar:</label>
                 <select id="perPage" x-model="perPage" @change="page = 1" class="text-sm border-gray-300 rounded-lg py-1.5 focus:ring-slate-500 focus:border-slate-500">
