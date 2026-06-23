@@ -65,9 +65,15 @@
             <button type="button" @click="showPdfModal = true" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">
                 Generar PDF
             </button>
-            <button type="button" @click="showDailyModal = true" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">
+            @if (auth()->user()->role === 'admin' || auth()->user()->role === 'planificador')
+                <button type="button" @click="showDailyModal = true" class="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-100">
                 Generar reporte diario
-            </button>
+                 </button>
+                
+            
+                
+            @endif
+          
         </div>
 
         <form id="week-filter-form"
