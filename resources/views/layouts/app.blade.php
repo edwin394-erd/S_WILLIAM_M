@@ -85,7 +85,7 @@
                     @if ($isAdminPlan || $isSupervisor)
                         <li class="font-bold text-gray-700 border-b border-dotted border-gray-400 pb-1 mt-4 mb-2 uppercase">Operaciones</li>
                         <li class="pl-4">
-                            <a href="{{ $isSupervisor ? route('supervisor.worksheets') : route('admin.worksheets.index') }}" class="{{ request()->routeIs($isSupervisor ? 'supervisor.worksheets*' : 'admin.worksheets*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Sábanas de Órdenes</a>
+                            <a href="{{ $isSupervisor ? route('supervisor.worksheets') : route('admin.worksheets.index') }}" class="{{ request()->routeIs($isSupervisor ? 'supervisor.worksheets*' : 'admin.worksheets*') ? 'text-pdvsa-red bg-pdvsa-red/10 font-semibold rounded-l-full' : 'text-gray-600 hover:text-pdvsa-red' }} py-1 block">Sabanas de Órdenes</a>
                         </li>
                     @endif
 

@@ -583,9 +583,9 @@ public function reportar(Request $request, $id)
             $errorMsg = "ERROR CRÍTICO: No existe la sábana destino en la base de datos para el departamento " . $workOrder->workSheet->department_id . " con fecha de inicio " . $weekStart->toDateString();
             Log::error($errorMsg);
             
-            // Verificamos si al menos existen otras sábanas para este departamento para darte pistas en el log
+            // Verificamos si al menos existen otras sabanas para este departamento para darte pistas en el log
             $existentes = WorkSheet::where('department_id', $workOrder->workSheet->department_id)->pluck('start_date')->toArray();
-            Log::error("Fechas de sábanas que SÍ existen para este departamento: " . implode(', ', $existentes));
+            Log::error("Fechas de sabanas que SÍ existen para este departamento: " . implode(', ', $existentes));
 
             return redirect()->back()->with('error', "No se reasignó. Debes crear primero la sábana para la fecha: {$weekStart->toDateString()}.");
         }
@@ -630,7 +630,7 @@ public function reportar(Request $request, $id)
                 }
 
                 if ($previousWorksheetId !== $targetWorksheet->id) {
-                    Log::debug("Marcando sábanas viejas y nuevas como 'POR ENVIAR'");
+                    Log::debug("Marcando sabanas viejas y nuevas como 'POR ENVIAR'");
                     WorkSheet::whereIn('id', [$previousWorksheetId, $targetWorksheet->id])
                         ->update(['enviado' => 'POR ENVIAR']);
                 }

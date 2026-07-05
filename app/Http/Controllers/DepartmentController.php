@@ -100,7 +100,7 @@ class DepartmentController extends Controller
                 $parts[] = 'disciplinas asociadas';
             }
             if ($department->worksheets_count > 0) {
-                $parts[] = 'sábanas asociadas';
+                $parts[] = 'sabanas asociadas';
             }
 
             $message .= implode(' y ', $parts) . '.';
